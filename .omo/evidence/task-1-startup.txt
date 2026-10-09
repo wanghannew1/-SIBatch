@@ -1,0 +1,37 @@
+=== T1 QA Scenario 1: 应用可启动 ===
+CMD: .venv/bin/python -c "from app import app; print(app.name)"
+EXIT: 0
+STDOUT:
+app
+
+=== healthz (test_client) ===
+{'app': 'app', 'packages': {'generator': True, 'parser': True}, 'status': 'ok'}
+
+=== SMOKE TEST: python app.py (backgrounded) ===
+server stdout:
+Listening on 0.0.0.0:5000
+ * Serving Flask app 'app'
+ * Debug mode: off
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+
+curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:5000/healthz  ->  HTTP 200
+curl -s http://127.0.0.1:5000/healthz -> {"app":"app","packages":{"generator":true,"parser":true},"status":"ok"}
+
+=== after kill ===
+pgrep -af "app\.py"  -> (no matches)
+ss -ltn ':5000'    -> NO_LISTENER_ON_5000
+server stopped cleanly, no orphan process
+=== CONFIG.PY AUDIT (T1 MUST: no business rules) ===
+--- module-level constants ---
+11:BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+14:DATABASE = os.path.join(BASE_DIR, "si_batch.db")
+17:UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+20:OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+23:HOST = "0.0.0.0"
+24:PORT = 5000
+27:SECRET_KEY = os.environ.get("SI_BATCH_SECRET_KEY") or secrets.token_hex(32)
+30:ALLOWED_EXTENSIONS = {"xls", "xlsx"}
+--- business data literals audit ---
+business structures found: NONE (only ALLOWED_EXTENSIONS infra set)
+module attrs: ['ALLOWED_EXTENSIONS', 'BASE_DIR', 'DATABASE', 'HOST', 'OUTPUT_DIR', 'PORT', 'SECRET_KEY', 'UPLOAD_DIR']
