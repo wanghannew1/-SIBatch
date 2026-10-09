@@ -1,0 +1,30 @@
+=== T5 verification ===
+venv check:
+.venv FOUND
+
+--- exact command (via .venv/bin/python) ---
+$ .venv/bin/python -c "from mapping import *; print(derive_gender(\x27...\x27), ...)"
+男 19800101 39070.0 46204.0 汉族 20200601
+
+--- assertions ---
+  derive_gender: None
+  derive_gender-none: None
+  derive_gender-15digit: None
+  derive_gender-nonid: None
+  derive_birthday-bad: None
+  yyyymm_to_date-int: '20200601'
+  yyyymm_to_date-bad: None
+  yyyymm_to_date-invalid-month: None
+  dash_date_to_yyyymmdd-dash: '20190303'
+  dash_date_to_yyyymmdd-compact: '20190303'
+  dash_date_to_yyyymmdd-empty: None
+  dash_date_to_yyyymmdd-invalid: None
+  to_excel_serial-dash: 39070.0
+  to_excel_serial-bad: None
+  strip_prefix-long: '吉林省长春市'
+  strip_prefix-noprefix: '22010419961122754X'
+  strip_prefix-int: '123'
+  strip_prefix-none: None
+ALL ASSERTIONS PASS
+
+--- expected main output: 男 19800101 39070.0 46204.0 汉族 20200601 ---
