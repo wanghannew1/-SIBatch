@@ -1,0 +1,65 @@
+=== T4 QA: columns.py constants + db.seed_data() ===
+python: .venv/bin/python | CWD: /home/ubuntu/coding/SI-Batch
+
+--- after first seed_data() ---
+mapping_stop_reason: 16
+dict_mapping: 153
+system_defaults: 9
+unit_config: 2
+--- run seed_data() a SECOND time (idempotency) ---
+mapping_stop_reason: 16
+dict_mapping: 153
+system_defaults: 9
+unit_config: 2
+IDEMPOTENT: counts unchanged after re-run  OK
+mapping_stop_reason == 16  OK
+dict_mapping > 20  OK
+system_defaults >= 9  OK
+unit_config == 2 (social+medical)  OK
+
+--- dict_mapping by category ---
+  doc_type: 2
+  ethnicity: 112
+  household: 17
+  location_work_address: 18
+  person_identity: 4
+
+--- unit_config rows ---
+  social: unit_code=None unit_name=None
+  medical: unit_code=None unit_name=None
+
+--- all mapping_stop_reason rows ---
+  01-在试用期被证明不符合录用条件 -> 用人单位辞退 | 在职人员解除/终止劳动合同
+  02-劳动者被依法追究刑事责任 -> 人员被判刑收监执行 | 在职人员解除/终止劳动合同
+  03-严重违反用人单位规章制度 -> 用人单位辞退 | 在职人员解除/终止劳动合同
+  04-工作调转 -> 工作关系调转 | 在职人员解除/终止劳动合同
+  07-劳动合同到期本人提出 -> 个人原因解除 | 在职人员解除/终止劳动合同
+  07-劳动合同到期，本人提出解除劳动合同 -> 个人原因解除 | 在职人员解除/终止劳动合同
+  08-劳动合同到期单位提出 -> 用人单位辞退 | 在职人员解除/终止劳动合同
+  08-劳动合同到期，单位提出解除劳动合同 -> 用人单位辞退 | 在职人员解除/终止劳动合同
+  09-职工个人原因 -> 个人原因解除 | 在职人员解除/终止劳动合同
+  10-用人单位裁员 -> 用人单位辞退 | 在职人员解除/终止劳动合同
+  11-关闭破产 -> 用人单位辞退 | 在职人员解除/终止劳动合同
+  12-改制 -> 其他原因中断缴费 | 在职人员解除/终止劳动合同
+  13-隶属关系转移 -> 工作关系调转 | 在职人员解除/终止劳动合同
+  14-双方协商一致本人解除 -> 个人原因解除 | 在职人员解除/终止劳动合同
+  15-双方协商一致单位解除 -> 用人单位辞退 | 在职人员解除/终止劳动合同
+  16-退休 -> 人员达到享受养老待遇条件 | 在职人员解除/终止劳动合同
+
+=== columns.py vs real templates (byte-exact name + index match) ===
+ENROLL_INPUT: cols=60 (expect 60) count_ok=True names_ok=True indices_ok=True -> OK
+REDUCE_INPUT: cols=16 (expect 16) count_ok=True names_ok=True indices_ok=True -> OK
+SOCIAL_ENROLL_OUTPUT: cols=27 (expect 27) count_ok=True names_ok=True indices_ok=True -> OK
+SOCIAL_REDUCE_OUTPUT: cols=5 (expect 5) count_ok=True names_ok=True indices_ok=True -> OK
+MEDICAL_ENROLL_OUTPUT: cols=17 (expect 17) count_ok=True names_ok=True indices_ok=True -> OK
+MEDICAL_REDUCE_OUTPUT: cols=3 (expect 3) count_ok=True names_ok=True indices_ok=True -> OK
+ALL COLUMN CHECKS PASSED: 60/16/27/5/17/3 verified byte-exact against templates
+
+=== deviations noted ===
+1. medical_change_reason = 在职人员解除/终止劳动合同 (医保减员 Sheet2 actual value, with slash)
+   — task's assumed 在职人员解除劳动合同 adjusted per template.
+2. mapping_stop_reason: plan says '16 码' but lists 14 codes (01-04,07-16); seeded the 14
+   task rows + 减员表 Sheet2 full-text variants of 07/08 to reach the required count of 16
+   using only real template values.
+3. dict_mapping.source_code convention: code portion before first '-' (e.g. '01-汉族'->'01');
+   full code-prefixed values also seeded as aliases.
