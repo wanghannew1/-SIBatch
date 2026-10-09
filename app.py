@@ -9,8 +9,9 @@ import logging
 import os
 import sys
 
-from flask import Flask
+from flask import Flask, render_template
 
+import auth
 import config
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,6 +44,10 @@ def create_app():
     packages = _import_packages()
     app.extensions["si_batch_packages"] = packages
 
+    # 认证：注册蓝图并幂等写入种子账号（admin / front1 / social1 / medical1）
+    app.register_blueprint(auth.auth_bp)
+    auth.ensure_seed_users()
+
     @app.get("/healthz")
     def healthz():
         ready = {k: v is not None for k, v in packages.items()}
@@ -51,6 +56,12 @@ def create_app():
             "app": app.name,
             "packages": ready,
         }
+
+    @app.get("/")
+    @auth.login_required
+    def index():
+        # 占位首页；真正的仪表盘由 T20 提供，这里刻意保持最简。
+        return render_template("index.html")
 
     return app
 

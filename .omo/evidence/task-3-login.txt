@@ -1,0 +1,18 @@
+QA1 — 登录成功 + 角色会话 (T3)
+==================================================
+
+Command:
+  .venv/bin/python app.py > /tmp/t3.log 2>&1 &
+  curl -s -c /tmp/c.txt -d "username=admin&password=admin123" -L http://localhost:5000/login
+
+Observed:
+  HTTP_STATUS=200
+  body contains: 欢迎，系统管理员
+  body contains: 用户名：<strong>admin</strong>
+
+Server log:
+  INFO:werkzeug:127.0.0.1 - - [..] "POST /login HTTP/1.1" 302 -
+  INFO:werkzeug:127.0.0.1 - - [..] "GET / HTTP/1.1" 200 -
+
+Result: PASS — after POST /login the client is redirected (302) to / which
+returns 200 and renders the current username "admin" and role "系统管理员".

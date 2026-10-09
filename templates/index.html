@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}首页 · 参保信息收集系统{% endblock %}
+{% block content %}
+<div class="p-4 bg-white rounded shadow-sm">
+  <h3 class="mb-3">欢迎，{{ current_user.display_name }}</h3>
+  <ul class="list-unstyled mb-0">
+    <li>用户名：<strong>{{ current_user.username }}</strong></li>
+    <li>角色：<strong>{{ ROLE_LABELS.get(current_user.role, current_user.role) }}</strong></li>
+  </ul>
+  <hr>
+  <p class="text-muted mb-0">这是登录后的占位首页，功能仪表盘将在后续任务中完善。</p>
+</div>
+{% endblock %}

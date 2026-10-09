@@ -1,0 +1,55 @@
+QA2 — 越权被拒 (RBAC 403) (T3)
+==================================================
+
+No admin routes exist yet, so RBAC is proven WITHOUT polluting production routes:
+a temporary route decorated with @require_role('admin') is registered on the app
+in a throwaway Python process and exercised with app.test_client().
+
+Snippet (/tmp/t3_rbac.py, run with PYTHONPATH=/home/ubuntu/coding/SI-Batch):
+------------------------------------------------------------------
+from app import app
+import auth
+
+
+@app.route("/__t3_admin_only")
+@auth.require_role("admin")
+def __t3_admin_only():
+    return "OK-ADMIN"
+
+
+front = app.test_client()
+r = front.post("/login", data={"username": "front1", "password": "123456"})
+print("front1 login ->", r.status_code, "Location:", r.headers.get("Location"))
+r = front.get("/__t3_admin_only")
+print("front1 GET /__t3_admin_only ->", r.status_code)
+assert r.status_code == 403, f"expected 403 for front1, got {r.status_code}"
+
+admin = app.test_client()
+r = admin.post("/login", data={"username": "admin", "password": "admin123"})
+print("admin  login ->", r.status_code, "Location:", r.headers.get("Location"))
+r = admin.get("/__t3_admin_only")
+print("admin  GET /__t3_admin_only ->", r.status_code, r.get_data(as_text=True))
+assert r.status_code == 200, f"expected 200 for admin, got {r.status_code}"
+
+anon = app.test_client()
+r = anon.get("/__t3_admin_only")
+print("anon   GET /__t3_admin_only ->", r.status_code, "Location:", r.headers.get("Location"))
+assert r.status_code == 302 and "/login" in (r.headers.get("Location") or "")
+
+print("RBAC OK: front1=403, admin=200, anonymous=302->/login")
+------------------------------------------------------------------
+
+Command:
+  cd /home/ubuntu/coding/SI-Batch
+  PYTHONPATH=/home/ubuntu/coding/SI-Batch .venv/bin/python /tmp/t3_rbac.py
+
+Output:
+  front1 login -> 302 Location: /
+  front1 GET /__t3_admin_only -> 403
+  admin  login -> 302 Location: /
+  admin  GET /__t3_admin_only -> 200 OK-ADMIN
+  anon   GET /__t3_admin_only -> 302 Location: /login
+  RBAC OK: front1=403, admin=200, anonymous=302->/login
+
+Result: PASS — a logged-in front1 client receives 403 on the admin-only route,
+admin receives 200, and an anonymous client is redirected to /login.
