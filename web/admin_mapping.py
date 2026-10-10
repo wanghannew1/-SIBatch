@@ -3,8 +3,9 @@
 三个可在线配置的分区（全部为 DB 表驱动，生成器运行时读库生效）：
 
 1. 减员原因映射（``mapping_stop_reason``）：合同终止原因 → 社保停保原因 /
-   医保变更原因。``POST /admin/mappings/save_reason`` 按 ``source_reason``
-   主键 upsert（INSERT ... ON CONFLICT DO UPDATE）。
+    医保变更原因。``POST /admin/mappings/save_reason`` 与
+    ``POST /admin/mappings/save`` （行为完全相同的别名） 按 ``source_reason``
+    主键 upsert（INSERT ... ON CONFLICT DO UPDATE）。
 2. 字典映射（``dict_mapping``）：分类/来源代码/目标值。
    ``POST /admin/mappings/save_dict`` 按 (category, source_code) upsert；
    ``POST /admin/mappings/delete_dict`` 删除指定行。
@@ -144,6 +145,25 @@ def mappings_page():
 @auth.require_role("admin")
 def save_reason():
     """POST /admin/mappings/save_reason — upsert 一条减员原因映射。"""
+    source, social, medical = _form("source", "social", "medical")
+    if not source:
+        flash("合同终止原因不能为空", "danger")
+        return redirect(url_for("admin_mappings.mappings_page"))
+    db.execute(_UPSERT_REASON, (source, social, medical))
+    flash(f"已保存减员原因映射：{source}", "success")
+    return redirect(url_for("admin_mappings.mappings_page"))
+
+
+@bp.post("/save")
+@auth.login_required
+@auth.require_role("admin")
+def save():
+    """POST /admin/mappings/save — 同 save_reason 的别名路由。
+
+    项目计划的 QA 直接 POST 该 URL（表单字段 source/social/medical），
+    行为与 ``save_reason`` 完全一致：复用同一 upsert SQL，按
+    ``source_reason`` 主键写入。管理页面仍继续使用 ``save_reason``。
+    """
     source, social, medical = _form("source", "social", "medical")
     if not source:
         flash("合同终止原因不能为空", "danger")

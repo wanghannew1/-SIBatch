@@ -60,3 +60,66 @@ db path: /home/ubuntu/coding/SI-Batch/si_batch.db
 ----------------------------------------------------------------------
 PASS=32 FAIL=0
 ALL T19 QA CHECKS PASSED
+
+=============== 追加：POST /admin/mappings/save（计划 QA 兼容路由） ===============
+时间: 2026-10-10
+背景: 项目计划 T19 QA 直接 POST http://localhost:5000/admin/mappings/save
+      （表单 source/social/可选 medical），原模块只有 save_reason，URL 404。
+改动: 仅 web/admin_mapping.py —— 新增 @bp.post("/save") 路由，与 save_reason
+      行为完全一致（同一 _UPSERT_REASON upsert SQL + _form 读参 + 同样的 admin
+      装饰器链）；save_reason 原样保留（管理页面继续使用）；未改其他文件。
+
+--- 命令 1: 语法检查 ---
+$ cd /home/ubuntu/coding/SI-Batch && .venv/bin/python -m py_compile web/admin_mapping.py
+COMPILE OK
+
+--- 命令 2: test_client 全流程（含越权/未登录/生成器读值/恢复） ---
+$ .venv/bin/python /tmp/opencode/verify_t19_save.py
+[PASS] 路由 POST /admin/mappings/save 已注册 | rule=/admin/mappings/save methods=['OPTIONS', 'POST']
+[PASS] 路由 POST /admin/mappings/save_reason 仍存在（管理页继续使用）
+BEFORE social_stop_reason='用人单位辞退'
+[PASS] admin 登录成功 | status=302
+[PASS] 未登录 POST /admin/mappings/save -> 302 跳登录 | status=302 location=/login
+[PASS] social1 登录成功 | status=302
+[PASS] social 角色 POST /admin/mappings/save -> 403 | status=403
+[PASS] 越权写入未生效 | social='用人单位辞退'
+[PASS] POST /admin/mappings/save -> 302 | status=302 location=/admin/mappings
+[PASS] DB mapping_stop_reason 已更新 social=其他原因中断缴费 | social='其他原因中断缴费' medical=''
+[PASS] 生成器 social_reduce._stop_reason 读到新映射 | _stop_reason('01-在试用期被证明不符合录用条件') = '其他原因中断缴费'
+[PASS] POST /admin/mappings/save 恢复 -> 302 | status=302
+[PASS] DB 已恢复 social=用人单位辞退 | social='用人单位辞退'
+[PASS] 生成器停保原因回到原值 | _stop_reason = '用人单位辞退'
+[PASS] POST /admin/mappings/save_reason 仍可用 -> 302 | status=302
+[PASS] save_reason 写入生效
+[PASS] save_reason 恢复原值 | social='用人单位辞退'
+----------------------------------------------------------------------
+PASS=16 FAIL=0
+ALL CHECKS PASSED
+
+--- 命令 3: 确认 upsert 语义（省略 medical 会清空该列，与 save_reason 一致） ---
+$ .venv/bin/python /tmp/opencode/restore_t19.py
+BEFORE: {'source_reason': '01-在试用期被证明不符合录用条件', 'social_stop_reason': '用人单位辞退', 'medical_change_reason': ''}
+POST /admin/mappings/save -> 302 location=/admin/mappings
+AFTER:  {'source_reason': '01-在试用期被证明不符合录用条件', 'social_stop_reason': '用人单位辞退', 'medical_change_reason': '在职人员解除/终止劳动合同'}
+RESTORED TO SEED: True
+rows=16 rows_with_blank_medical=[]
+OK
+
+--- 命令 4: 真实生成器验证（写出到 /tmp，未触碰仓库 outputs/） ---
+$ .venv/bin/python /tmp/opencode/gen_t19.py
+fixture records: [{'id': 5, 'terminate_reason': '01-在试用期被证明不符合录用条件'}]
+reuse reduce batch id=11, record id=5
+save (new social, medical kept): (302, '/admin/mappings')
+db after save: {'social_stop_reason': '其他原因中断缴费', 'medical_change_reason': '在职人员解除/终止劳动合同'}
+generated: /tmp/opencode/verify_t19_social_reduce.xlsx; D2(停保原因)='其他原因中断缴费'; F2(合同终止原因)='01-在试用期被证明不符合录用条件'
+[PASS] 生成文件停保原因 = 其他原因中断缴费（映射生效）
+restore: (302, '/admin/mappings')
+db after restore: {'social_stop_reason': '用人单位辞退', 'medical_change_reason': '在职人员解除/终止劳动合同'}
+regenerated D2 = '用人单位辞退'
+[PASS] 恢复后重新生成停保原因 = 用人单位辞退
+rows with blank social/medical: []
+[PASS] mapping_stop_reason 16 行全部非空，DB 已恢复
+
+新增路由:
+- POST /admin/mappings/save  source(+social,medical) -> upsert ON CONFLICT(source_reason)，admin only
+未修改: app.py / auth.py / db.py / templates/admin_mappings.html / generator/* / 其他文件
