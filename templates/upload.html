@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}上传 · 参保信息收集系统{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">导入增员 / 减员表</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" action="/upload" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label class="form-label">导入类型</label>
+            <div class="btn-group w-100" role="group" aria-label="导入类型">
+              {% for value, label in type_labels.items() %}
+              <input type="radio" class="btn-check" name="type" id="type-{{ value }}"
+                     value="{{ value }}" {% if active_type == value %}checked{% endif %}>
+              <label class="btn btn-outline-primary" for="type-{{ value }}">{{ label }}</label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="file">选择文件（.xls / .xlsx）</label>
+            <input class="form-control" type="file" id="file" name="file"
+                   accept=".xls,.xlsx" required>
+            <div class="form-text">请使用「合同批量导入模板（增员）」或「合同解除批量导入模板（减员）」。</div>
+          </div>
+          <button class="btn btn-primary w-100" type="submit">上传并导入</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    {% if result %}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">导入结果</h5>
+      </div>
+      <div class="card-body">
+        {% if result.success_count %}
+        <div class="alert alert-success mb-3">
+          成功导入 <strong>{{ result.success_count }}</strong> 条记录
+          {% if result.errors %}，<strong>{{ result.errors|length }}</strong> 行失败{% endif %}
+        </div>
+        {% else %}
+        <div class="alert alert-danger mb-3">
+          未导入任何记录，<strong>{{ result.errors|length }}</strong> 行失败
+        </div>
+        {% endif %}
+
+        {% if result.errors %}
+        <h6 class="text-danger mb-2">失败原因</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center" style="width: 6rem">行号</th>
+                <th>失败原因</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for err in result.errors %}
+              <tr>
+                <td class="text-center">{{ err.row }}</td>
+                <td>{{ err.reason }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">导入批次</h5>
+        <span class="badge bg-secondary">{{ batches|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center">ID</th>
+                <th>类型</th>
+                <th>文件名</th>
+                <th>上传人</th>
+                <th>时间</th>
+                <th class="text-end">条数</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in batches %}
+              <tr>
+                <td class="text-center text-muted">{{ b.id }}</td>
+                <td>
+                  {% if b.batch_type == 'enroll' %}
+                  <span class="badge bg-primary">增员</span>
+                  {% else %}
+                  <span class="badge bg-info text-dark">减员</span>
+                  {% endif %}
+                </td>
+                <td class="text-truncate" style="max-width: 18rem" title="{{ b.filename }}">{{ b.filename }}</td>
+                <td>{{ b.uploaded_by or '-' }}</td>
+                <td>{{ b.uploaded_at }}</td>
+                <td class="text-end">{{ b.total_rows }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">暂无导入批次</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+=== T13 verification: 前台上传页面 + 路由 (web/front.py + templates/upload.html) ===
+venv check:
+.venv FOUND (python via .venv/bin/python, cwd /home/ubuntu/coding/SI-Batch)
+
+--- exact commands (in-process Flask test_client, NO live server / port 5000 untouched) ---
+$ .venv/bin/python /tmp/opencode/qa_t13.py
+  (script: from app import app; c = app.test_client();
+   login front1 via POST /login {username: front1, password: 123456};
+   GET /upload; POST /upload multipart {type: enroll, file: 输入输出/输入/合同批量导入模板 (增员).xls};
+   POST /upload multipart {type: enroll, file: synthetic invalid .xls (row missing 姓名, built via xlwt)};
+   verify batch list via db.query_all; permission checks social1/admin)
+$ .venv/bin/python -c "... reduce template upload ..."   # reduce path smoke test
+
+--- observed output ---
+=== T13 verification: 前台上传页面 + 路由 (web/front.py + templates/upload.html) ===
+mode: in-process Flask test_client (no live server)
+venv: .venv/bin/python, cwd /home/ubuntu/coding/SI-Batch
+
+--- blueprint auto-registration (no app.py edit) ---
+$ app.blueprints -> ['admin_mappings', 'admin_units', 'auth', 'medical', 'province_injury', 'social', 'upload']
+  [PASS] 'upload' blueprint auto-registered
+  [PASS] url_prefix == /upload -> /upload
+
+--- 1) GET /upload anonymous -> redirect to /login ---
+$ anon GET /upload -> 302 Location=/login
+  [PASS] anonymous redirect (302)
+
+--- 2) login front1 + GET /upload ---
+$ POST /login username=front1 password=123456 -> 302
+  [PASS] front1 login ok (302 to landing)
+$ GET /upload -> 200
+  [PASS] GET /upload -> 200
+  [PASS] page has 上传表单 (导入类型)
+  [PASS] page has 批次列表 (导入批次)
+
+--- 3) POST /upload real enroll template (multipart) ---
+$ curl -F "file=@输入输出/输入/合同批量导入模板 (增员).xls" -F "type=enroll" /upload  (via test_client)
+$ status -> 200
+  [PASS] POST /upload enroll -> 200
+  [PASS] body contains 成功导入
+$ parsed success count -> 1
+  [PASS] success count >= 1 -> count=1
+$ enroll_records latest -> {'name': '张三', 'id_card': '220101198001010059'}
+  [PASS] imported record is 张三 -> name=张三
+
+--- 4) POST synthetic invalid .xls (row missing 姓名) ---
+$ built /tmp/t13_invalid_enroll.xls via xlwt (row 5 missing 姓名, row 6 valid)
+$ status -> 200
+  [PASS] invalid POST -> 200 (no 500)
+  [PASS] body shows 姓名不能为空
+  [PASS] body shows 失败原因 panel
+  [PASS] body shows the row number 5
+
+--- 5) batch list includes newly imported batches ---
+$ import_batches id=13 type=enroll file='invalid_enroll.xls' by='front1' rows=1
+$ import_batches id=12 type=enroll file='合同批量导入模板 (增员).xls' by='front1' rows=1
+$ import_batches id=11 type=reduce file='合同解除批量导入模板 (减员).xls' by='front1' rows=1
+$ import_batches id=8 type=enroll file='invalid_enroll.xls' by='front1' rows=1
+$ import_batches id=7 type=enroll file='合同批量导入模板 (增员).xls' by='front1' rows=1
+  [PASS] newest batch = invalid enroll (uploaded_by front1)
+  [PASS] batch list rendered on page after upload
+  [PASS] front1 username visible as 上传人 after re-GET
+  [PASS] enroll filename visible in batch list
+  [PASS] batch list shows per-batch id column
+  [PASS] newest batch id rendered -> id=13
+
+--- 6) permission: social must NOT access /upload ---
+$ social1 GET /upload -> 403
+  [PASS] social1 -> 403
+  [PASS] social1 POST /upload -> 403
+
+--- 7) admin allowed ---
+$ admin GET /upload -> 200
+  [PASS] admin GET /upload -> 200
+
+--- summary ---
+passed 24/24
+ALL ASSERTIONS PASS
+
+--- reduce path smoke test (real reduce template) ---
+$ .venv/bin/python -c "c.post('/upload', data={'type':'reduce','file':...})"
+reduce POST status: 200 | success count: 1 | 成功导入 in body: True
