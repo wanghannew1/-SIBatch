@@ -1,0 +1,52 @@
+=== T18 admin 单位信息配置页面 + 路由 — QA ===
+python: 3.12.3
+db:     /home/ubuntu/coding/SI-Batch/si_batch.db
+admin_units routes: ['/admin/units', '/admin/units/save']
+[PASS] blueprint admin_units auto-registered
+[PASS] GET /admin/units route present — ['/admin/units', '/admin/units/save']
+[PASS] anonymous GET /admin/units -> 302 login — status=302 location=/login
+[PASS] admin login -> 302 — status=302
+[PASS] admin GET /admin/units -> 200 — status=200
+[PASS] form contains '单位编号'
+[PASS] form contains '单位名称'
+[PASS] form contains '社保单位信息'
+[PASS] form contains '医保单位信息'
+[PASS] form contains 'social_code'
+[PASS] form contains 'social_name'
+[PASS] form contains 'medical_code'
+[PASS] form contains 'medical_name'
+[PASS] form contains '保存'
+[PASS] form posts to /admin/units/save
+[PASS] front1 GET /admin/units -> 403 — status=403
+[PASS] front1 POST /admin/units/save -> 403 — status=403
+[PASS] admin re-login -> 302 — status=302
+[PASS] POST /admin/units/save -> 302 — status=302 location=/admin/units
+[PASS] redirect -> /admin/units — /admin/units
+unit_config(social)  = {'insurance_type': 'social', 'unit_code': '123456', 'unit_name': '测试公司'}
+[PASS] social row exists
+[PASS] social unit_code == '123456' — '123456'
+[PASS] social unit_name == '测试公司' — '测试公司'
+unit_config(medical) = {'insurance_type': 'medical', 'unit_code': None, 'unit_name': None}
+[PASS] medical row exists
+[PASS] medical unit_code IS NULL — None
+[PASS] medical unit_name IS NULL — None
+unit_config all rows: [{'insurance_type': 'medical', 'unit_code': None, 'unit_name': None}, {'insurance_type': 'social', 'unit_code': '123456', 'unit_name': '测试公司'}]
+[PASS] unit_config has exactly 2 rows (social, medical) — count=2
+[PASS] re-filled form has 单位编号 value 123456
+[PASS] re-filled form has 单位名称 value 测试公司
+[PASS] re-filled form medical inputs empty
+existing enroll batch 1 has 1 usable record(s)
+generating for batch_id=1 usable_records=1 out=/home/ubuntu/coding/SI-Batch/outputs/t18_units.xlsx
+[PASS] batch has >=1 usable enroll record — n=1
+generate() -> /home/ubuntu/coding/SI-Batch/outputs/t18_units.xlsx
+[PASS] output file exists
+B2 = '123456'   E2 = '测试公司'
+[PASS] B2 == '123456' — '123456'
+[PASS] E2 == '测试公司' — '测试公司'
+data row 5 A:D = [None, '220101198001010059', '张三', '汉族']
+[PASS] restore POST -> 302 — status=302
+unit_config after restore: [{'insurance_type': 'medical', 'unit_code': None, 'unit_name': None}, {'insurance_type': 'social', 'unit_code': None, 'unit_name': None}]
+[PASS] restored: 2 rows — count=2
+[PASS] restored: social NULL/NULL — [{'insurance_type': 'medical', 'unit_code': None, 'unit_name': None}, {'insurance_type': 'social', 'unit_code': None, 'unit_name': None}]
+
+=== RESULT: ALL PASS ===

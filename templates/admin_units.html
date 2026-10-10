@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}单位信息配置 · 参保信息收集系统{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-0">单位信息配置</h3>
+    <div class="text-muted small">社保 / 医保各自一套单位编号与单位名称，生成报盘时自动填入模板</div>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('admin_units.save') }}">
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">社保单位信息</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label" for="social_code">单位编号</label>
+            <input type="text" class="form-control" id="social_code" name="social_code"
+                   value="{{ units.social.code or '' }}" placeholder="如：123456">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="social_name">单位名称</label>
+            <input type="text" class="form-control" id="social_name" name="social_name"
+                   value="{{ units.social.name or '' }}" placeholder="如：测试公司">
+          </div>
+          <div class="form-text">用于社保增员/减员报盘模板的单位编号、单位名称。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">医保单位信息</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label" for="medical_code">单位编号</label>
+            <input type="text" class="form-control" id="medical_code" name="medical_code"
+                   value="{{ units.medical.code or '' }}" placeholder="如：123456">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="medical_name">单位名称</label>
+            <input type="text" class="form-control" id="medical_name" name="medical_name"
+                   value="{{ units.medical.name or '' }}" placeholder="如：测试公司">
+          </div>
+          <div class="form-text">用于省医保/市医保报盘模板的单位编号、单位名称。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <button type="submit" class="btn btn-primary">保存</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('admin_units.index') }}">重置</a>
+  </div>
+</form>
+{% endblock %}
