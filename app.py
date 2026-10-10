@@ -13,6 +13,7 @@ from flask import Flask, render_template
 
 import auth
 import config
+import db
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
@@ -89,8 +90,53 @@ def create_app():
     @app.get("/")
     @auth.login_required
     def index():
-        # 占位首页；真正的仪表盘由 T20 提供，这里刻意保持最简。
-        return render_template("index.html")
+        """角色专属首页仪表盘（T20）。
+
+        按当前角色统计简单计数（全部经 db DAL 参数化查询），渲染
+        dashboard.html。仅计数 + 快捷入口，不做图表。
+        """
+        user = auth.current_user()
+        role = user["role"]
+
+        def _count(sql, params=()):
+            row = db.query_one(sql, params)
+            return row[0] if row is not None else 0
+
+        stats = {}
+        if role == auth.ROLE_FRONT:
+            stats["imported_batches"] = _count(
+                "SELECT COUNT(*) FROM import_batches"
+            )
+        elif role == auth.ROLE_SOCIAL:
+            stats["enroll_batches"] = _count(
+                "SELECT COUNT(*) FROM import_batches WHERE batch_type = 'enroll'"
+            )
+            stats["reduce_batches"] = _count(
+                "SELECT COUNT(*) FROM import_batches WHERE batch_type = 'reduce'"
+            )
+            stats["province_injury_count"] = _count(
+                "SELECT COUNT(*) FROM province_injury"
+            )
+        elif role == auth.ROLE_MEDICAL:
+            stats["enroll_batches"] = _count(
+                "SELECT COUNT(*) FROM import_batches WHERE batch_type = 'enroll'"
+            )
+            stats["reduce_batches"] = _count(
+                "SELECT COUNT(*) FROM import_batches WHERE batch_type = 'reduce'"
+            )
+        elif role == auth.ROLE_ADMIN:
+            stats["user_count"] = _count("SELECT COUNT(*) FROM users")
+            stats["enroll_batches"] = _count(
+                "SELECT COUNT(*) FROM import_batches WHERE batch_type = 'enroll'"
+            )
+            stats["reduce_batches"] = _count(
+                "SELECT COUNT(*) FROM import_batches WHERE batch_type = 'reduce'"
+            )
+            stats["total_batches"] = _count(
+                "SELECT COUNT(*) FROM import_batches"
+            )
+
+        return render_template("dashboard.html", stats=stats)
 
     return app
 

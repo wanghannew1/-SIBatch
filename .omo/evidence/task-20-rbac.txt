@@ -1,0 +1,35 @@
+=== T20 verification: dashboard.html + route integration + RBAC ===
+method: Flask test_client (no live server)
+command: .venv/bin/python /tmp/opencode/t20_qa.py
+
+0. auth.landing_endpoint per role (expect all -> index):
+   front -> index
+   social -> index
+   medical -> index
+   admin -> index
+
+1. role dashboards: login + GET / -> 200 + expected section text
+   front1: login -> 302 (loc=/) | GET / -> 200 | 待上传（已导入批次）:True | 上传增员/减员表:True
+   social1: login -> 302 (loc=/) | GET / -> 200 | 增员批次:True | 减员批次:True | 省工伤人数:True | 社保报盘管理:True | 省工伤人员管理:True
+   medical1: login -> 302 (loc=/) | GET / -> 200 | 增员批次:True | 减员批次:True | 医保报盘管理:True
+   admin: login -> 302 (loc=/) | GET / -> 200 | 用户数:True | 批次总数:True | 系统管理:True | 用户管理:True | 单位信息:True | 映射配置:True
+
+1b. dashboard counts rendered (db DAL values):
+   front1 待上传 count '>9<' present: True
+   social1 增员'>8<' present: True | 减员'>1<' present: True
+   admin 用户数'>4<' present: True | 批次总数'>9<' present: True
+
+2. cross-role isolation (expect 403 on every cross-role access)
+   front1 GET /social/generate -> 405
+   front1 POST /social/generate -> 403
+   front1 GET /medical -> 403
+   front1 GET /admin/users -> 403
+   social1 GET /medical -> 403
+   social1 GET /admin/users -> 403
+   medical1 GET /social -> 403
+   medical1 GET /admin/users -> 403
+
+3. anonymous GET / -> 302 to /login
+   GET / -> 302 | Location: /login
+
+ALL CHECKS DONE

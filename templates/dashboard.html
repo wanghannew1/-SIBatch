@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}首页 · 参保信息收集系统{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3 class="mb-0">工作台</h3>
+  <span class="text-muted">
+    {{ current_user.display_name }}
+    <span class="badge bg-secondary">{{ ROLE_LABELS.get(current_user.role, current_user.role) }}</span>
+  </span>
+</div>
+
+{% if current_user.role == 'front' %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.imported_batches }}</div>
+          <div class="text-muted mt-1">待上传（已导入批次）</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-8">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title">快捷操作</h5>
+          <p class="text-muted">上传增员表 / 减员表，导入后即可在社保、医保页面生成报盘。</p>
+          <a class="btn btn-primary" href="{{ url_for('upload.upload_page') }}">上传增员/减员表</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% elif current_user.role == 'social' %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.enroll_batches }}</div>
+          <div class="text-muted mt-1">增员批次</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.reduce_batches }}</div>
+          <div class="text-muted mt-1">减员批次</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.province_injury_count }}</div>
+          <div class="text-muted mt-1">省工伤人数</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">快捷操作</h5>
+          <a class="btn btn-primary me-2" href="{{ url_for('social.index') }}">社保报盘管理</a>
+          <a class="btn btn-outline-primary" href="{{ url_for('province_injury.index') }}">省工伤人员管理</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% elif current_user.role == 'medical' %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.enroll_batches }}</div>
+          <div class="text-muted mt-1">增员批次</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.reduce_batches }}</div>
+          <div class="text-muted mt-1">减员批次</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title">快捷操作</h5>
+          <a class="btn btn-primary" href="{{ url_for('medical.index') }}">医保报盘管理</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% elif current_user.role == 'admin' %}
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.user_count }}</div>
+          <div class="text-muted mt-1">用户数</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.enroll_batches }}</div>
+          <div class="text-muted mt-1">增员批次</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.reduce_batches }}</div>
+          <div class="text-muted mt-1">减员批次</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="display-5 fw-bold text-primary">{{ stats.total_batches }}</div>
+          <div class="text-muted mt-1">批次总数</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">系统管理</h5>
+          <a class="btn btn-primary me-2" href="{{ url_for('admin_users.list_users') }}">用户管理</a>
+          <a class="btn btn-outline-primary me-2" href="{{ url_for('admin_units.index') }}">单位信息</a>
+          <a class="btn btn-outline-primary" href="{{ url_for('admin_mappings.mappings_page') }}">映射配置</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
