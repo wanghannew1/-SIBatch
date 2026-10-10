@@ -1,0 +1,51 @@
+T10 — 省工伤减员生成器 QA evidence
+===================================
+File: generator/province_injury_reduce.py
+Command: .venv/bin/python (cwd=/home/ubuntu/coding/SI-Batch)
+
+QA steps (per plan TODO #10):
+  1. Insert one self-contained province_injury row:
+       name='王五', id_card='220101197001010031',
+       stop_date='20260701', stop_reason='用人单位辞退'
+  2. generate(out='outputs/test_pi_reduce.xlsx')
+  3. Reopen and print ws.max_column, ws.cell(2,3).value
+
+Transcript:
+----------
+>>> import db
+>>> db.init_db()
+>>> db.execute(
+...     "INSERT INTO province_injury (name, id_card, stop_date, stop_reason) VALUES (?, ?, ?, ?)",
+...     ("王五", "220101197001010031", "20260701", "用人单位辞退"))
+>>> from generator.province_injury_reduce import generate
+>>> path = generate(out="outputs/test_pi_reduce.xlsx")
+>>> import openpyxl
+>>> ws = openpyxl.load_workbook(path).active
+>>> print("max_column:", ws.max_column)
+max_column: 5
+>>> print("header:", [ws.cell(1, c).value for c in range(1, ws.max_column + 1)])
+header: ['证件号码', '姓名', '停保日期', '停保原因', '备注']
+>>> print("cell(2,3):", ws.cell(2, 3).value)
+cell(2, 3): 20260701
+>>> print("row2:", [ws.cell(2, c).value for c in range(1, ws.max_column + 1)])
+row2: ['220101197001010031', '王五', '20260701', '用人单位辞退', None]
+
+Expected: 5 20260701  →  PASS (max_column=5, cell(2,3)=20260701)
+
+Checks:
+  - Exactly 5 columns, header row 1: 证件号码/姓名/停保日期/停保原因/备注
+    (from columns.SOCIAL_REDUCE_OUTPUT_HEADERS) — NO 合同终止原因 column. PASS
+  - Data starts at row 2. PASS
+  - 停保原因 = raw stop_reason ('用人单位辞退'), no mapping. PASS
+  - 备注 = '' (openpyxl reads empty string back as None). PASS
+  - Source: SELECT * FROM province_injury WHERE stop_date IS NOT NULL
+    AND TRIM(stop_date) <> '' — independent table, no import_batches /
+    enroll_records / reduce_records reads. PASS
+
+Extra check — dash-date normalization:
+  Inserted ('赵六', '220101197001010032', '2026-07-01', '个人原因解除')
+  → generate → ws.max_column=5, ws.cell(2,3).value=20260701
+  ('2026-07-01' normalized to '20260701'). PASS
+
+Cleanup: both test rows deleted after QA; province_injury back to 0 rows.
+Output artifacts: outputs/test_pi_reduce.xlsx, outputs/test_pi_reduce_dash.xlsx
