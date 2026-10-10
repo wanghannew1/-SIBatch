@@ -1,0 +1,77 @@
+T12 — 医保减员生成器（generator/medical_reduce.py）
+====================================================
+Date: 2026-10-10
+Agent: opencode (quick)
+
+IMPLEMENTATION
+--------------
+New file: generator/medical_reduce.py
+  generate(batch_id, out_dir, *, generated_by=None) -> dict
+  Returns {"province": <省医保减员.xls path>, "city": <市医保减员.xls path>}.
+
+- Records: SELECT * FROM reduce_records WHERE batch_id=? filtered to
+  medical_reduce_ym IS NOT NULL AND TRIM(medical_reduce_ym) <> '' (ORDER BY id).
+- Output: xlwt .xls, Sheet1, 3 columns (姓名 / 证件类型 / 证件号码),
+  header at 0-based row 0, data from 0-based row 1
+  (columns.MEDICAL_REDUCE_OUTPUT_*). No 合同终止原因 column appended.
+- 证件号码 written as TEXT (xlwt str cell) — no scientific notation.
+- 证件类型: reduce_records has no doc_type column, so the input convention
+  applies — dict_mapping lookup category='doc_type', source_code=''
+  -> '居民身份证（户口簿）' (falls back to the same constant if the
+  dictionary row is missing).
+
+KEY DESIGN — 医保属地解析
+--------------------------
+reduce_records has NO medical_location column. Per spec, each person's
+医保参保属地 is resolved by looking up enroll_records by id_card:
+
+  SELECT medical_location FROM enroll_records WHERE id_card = ?
+  ORDER BY id DESC LIMIT 1
+
+Routing: take the code prefix before the first '-'; if it startswith
+'2299' -> 省医保减员.xls, otherwise -> 市医保减员.xls.
+If no enroll record matches (or medical_location is empty), the record
+defaults to 市医保减员.xls (documented fallback; not hit by the QA
+fixture, which has an enroll match).
+
+QA (self-contained, temp DB at /tmp/opencode/t12_qa.db — repo si_batch.db
+untouched; db.DATABASE patched before calling generate)
+---------------------------------------------------------------------
+Fixtures inserted:
+  import_batches: ('enroll', 'qa-enroll.xls'), ('reduce', 'qa-reduce.xls')
+  enroll_records: name='张三', id_card='220101198001010059',
+                  medical_location='229900000000-吉林省省直'
+  reduce_records: name='张三', id_card='220101198001010059',
+                  terminate_date='2019-01-01', medical_reduce_ym='202007',
+                  terminate_reason='01-在试用期被证明不符合录用条件'
+
+Command:
+  .venv/bin/python /tmp/opencode/t12_qa.py   (cwd=/home/ubuntu/coding/SI-Batch)
+
+Transcript:
+  generate() -> {'province': 'outputs/省医保减员.xls', 'city': 'outputs/市医保减员.xls'}
+  省医保减员.xls ncols = 3
+  省医保减员.xls cell_value(1,0) = '张三'
+  省医保减员.xls cell_value(1,1) = '居民身份证（户口簿）'
+  省医保减员.xls cell_value(1,2) = '220101198001010059' type: 1 (XL_CELL_TEXT)
+  市医保减员.xls nrows = 1 (仅表头, 张三不应出现)
+  QA PASS: 3 张三
+
+Momus correction (documented per review)
+----------------------------------------
+The plan's QA scenario (.omo/plans/si-batch-参保信息收集系统.md line 812)
+said to reopen 市医保减员.xls and expected "3 张三". That is wrong for this
+fixture: 张三's medical_location is '229900000000-吉林省省直', whose code
+prefix '229900000000' startswith '2299' -> 省直, so 张三 MUST appear in
+省医保减员.xls, NOT 市医保减员.xls. QA therefore reopens
+outputs/省医保减员.xls and asserts 张三 is absent from 市医保减员.xls
+(header-only). Expected result "3 张三" holds for 省医保减员.xls.
+
+Acceptance criteria
+-------------------
+[x] 生成省、市两个 .xls，各 3 列 (ncols=3 verified for both files)
+[x] 张三样本落入对应属地文件 (省医保减员.xls row 1 = 张三)
+[x] 证件号码为文本 (cell_type=1, full 18 digits, no scientific notation)
+[x] 未追加合同终止原因列 (3 columns only)
+[x] 未修改任何既有文件（仅新建 generator/medical_reduce.py；
+    outputs/省医保减员.xls 与 outputs/市医保减员.xls 为任务要求的生成物）
