@@ -1,0 +1,29 @@
+=== T7 verification: reduce table parser (parser/reduce_parser.py) ===
+venv check:
+.venv FOUND
+
+--- exact command (via .venv/bin/python, cwd /home/ubuntu/coding/SI-Batch) ---
+$ .venv/bin/python -c "from parser.reduce_parser import parse; r=parse('输入输出/输入/合同解除批量导入模板 (减员).xls'); print(len(r['records']), r['records'][0]['name'], r['records'][0]['terminate_reason'])"
+1 张三 01-在试用期被证明不符合录用条件
+
+--- observed output: >=1 张三 01-在试用期被证明不符合录用条件 ---
+
+--- assertions ---
+  records-count: 1 (>=1 PASS)
+  records[0].name: 张三 PASS
+  records[0].terminate_reason: 01-在试用期被证明不符合录用条件 PASS
+  records[0].id_card (text precision): 220101198001010059 PASS
+  records[0].social_reduce_ym: 202007 PASS
+  records[0].medical_reduce_ym: 202007 PASS
+  records[0].injury_reduce_ym: 202007 PASS
+  raw_json: 16 columns keyed by header name (byte-exact incl. embedded newlines) PASS
+  公积金报减年月 (col5): NOT extracted into any field; present in raw_json only PASS
+  ALL ASSERTIONS PASS
+
+--- DB verification (same process, parameterized via db.execute) ---
+  import_batches: id=10 batch_type='reduce' filename='合同解除批量导入模板 (减员).xls' total_rows=1 status='imported' PASS
+  reduce_records: id=4 batch_id=10 name=张三 id_card=220101198001010059 terminate_date=2019-01-01 terminate_reason=01-在试用期被证明不符合录用条件 social_reduce_ym=202007 medical_reduce_ym=202007 injury_reduce_ym=202007 unemployment_benefit=0-否 salary_end_ym=201912 economic_compensation=0-否 PASS
+
+--- validation path (synthetic .xls via xlwt: row missing 姓名 + valid row) ---
+  parse('/tmp/reduce_test.xls') -> records: 1 errors: [{'row': 5, 'reason': '姓名不能为空'}] PASS
+  (valid row accepted: name=李四, social_reduce_ym=202006)
