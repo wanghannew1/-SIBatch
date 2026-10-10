@@ -1,0 +1,63 @@
+T15 — 省工伤管理页面 + 路由 QA evidence
+========================================
+Files created:
+  - web/province_injury.py            (Blueprint 'province_injury', url_prefix=/province_injury)
+  - templates/province_injury.html    (extends base.html, Bootstrap 5)
+Routes (per plan TODO #15):
+  GET  /province_injury               列表 + 新增表单 + 导入表单 + 生成按钮
+  POST /province_injury/add           新增（gender/birthday 由身份证推导，status 默认 active）
+  POST /province_injury/edit/<id>     编辑
+  POST /province_injury/delete/<id>   删除
+  POST /province_injury/import        导入增员模板 .xls → province_injury
+  GET  /province_injury/generate      调 generator.province_injury_reduce.generate → 下载 5 列停保报盘
+Permission: social + admin（front1 越权 403 已验证）
+Import isolation: 复用 parser.enroll_parser 的提取逻辑（_cell_at/_cell_text/
+  _FIELD_COLUMNS + columns.ENROLL_INPUT_*），只写 province_injury 表；
+  不调用会写 import_batches/enroll_records 的 parse() —— 导入前后两表计数
+  不变（4->4），证明省工伤名单与增员/减员批次流程完全隔离。
+QA method: Flask test_client（无 live server），登录 social1。
+注：import_batches/enroll_records 的 4 条为并行 Wave 3 任务（T13/T14 等）
+  产生的批次，非本任务写入；本任务导入前后计数不变。
+
+Transcript:
+----------
+[PASS] login social1 -> redirect status=302
+[PASS] GET /province_injury 200 status=200
+[PASS] 页面含标题 
+[PASS] 页面含新增表单 
+[PASS] 页面含导入表单 
+[PASS] 页面含生成按钮 
+[PASS] POST /add -> 302 status=302
+[PASS] 新增行入库 
+[PASS] name=测试 
+[PASS] settlement_unit=测试单位 
+[PASS] contract_start_date=2020-01-01 
+[PASS] gender 由身份证推导=男 gender='男'
+[PASS] birthday 由身份证推导=19900101 birthday='19900101'
+[PASS] status 默认=active status='active'
+[PASS] 列表页出现新增行 
+[PASS] POST /edit -> 302 status=302
+[PASS] settlement_unit 已更新 ='新结算单元'
+[PASS] stop_date 已更新 ='2026-07-01'
+[PASS] stop_reason 已更新 ='用人单位辞退'
+[PASS] POST /generate -> 200 status=200
+[PASS] 响应体非空 len=4990
+[PASS] xlsx 魔数 PK\x03\x04 head=b'PK\x03\x04'
+[PASS] 输出文件 5 列 max_column=5
+[PASS] 表头 5 列 
+[PASS] 数据行 2 row2=['220101199001011234', '测试', '20260701', '用人单位辞退', None]
+[PASS] POST /import -> 302 status=302
+[PASS] 导入行 张三 入库 
+[PASS] 张三 name 
+[PASS] 张三 contract_start_date=2019-03-03 ='2019-03-03'
+[PASS] 张三 contract_salary=2500 ='2500'
+[PASS] 张三 gender=男 ='男'
+[PASS] 张三 status=active 
+[PASS] 不混用 import_batches（计数不变） 4->4
+[PASS] 不混用 enroll_records（计数不变） 4->4
+[PASS] front1 访问 -> 403 status=403
+[PASS] front1 新增 -> 403 status=403
+[PASS] 清理后 province_injury 归零 left=0
+
+==== SUMMARY ====
+total=37 passed=37 failed=0
