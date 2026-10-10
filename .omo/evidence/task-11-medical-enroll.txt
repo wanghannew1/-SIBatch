@@ -1,0 +1,136 @@
+T11 — 医保增员生成器 QA evidence
+==================================
+File: generator/medical_enroll.py
+Command: .venv/bin/python (cwd=/home/ubuntu/coding/SI-Batch)
+
+QA steps (per plan TODO #11):
+  1. Insert one self-contained enroll batch (type 'enroll') + 张三 record
+     (fixture from task; medical_location='229900000000-吉林省省直') plus
+     李四 record (medical_location='220100000000-吉林省长春市') for 市-side check.
+  2. generate(batch_id=<id>, out_dir='outputs')
+  3. Reopen outputs/省医保增员.xls via xlrd; print ws.ncols,
+     ws.cell_value(1,2), ws.cell_value(1,5). Expected: 17 张三 29221.0
+  4. Reopen outputs/市医保增员.xls; check 本次参保时间 = serial('20200601').
+  5. Cleanup: DELETE the QA batch (CASCADE removes its enroll_records).
+
+Transcript:
+----------
+>>> import json, db
+>>> db.init_db()
+>>> db.execute(
+...     "INSERT INTO import_batches (batch_type, filename, uploaded_by, total_rows, status)"
+...     " VALUES ('enroll', 'qa-t11-medical-enroll', 'qa-t11', 2, 'imported')")
+>>> # enroll_records: 张三 (229900000000-吉林省省直, id_card 220101198001010059,
+>>> #   phone 13333333333, contract_start 2019-03-03, contract_salary 2500,
+>>> #   household_type 11-本地非农业户口（本地城镇）, ethnicity 01-汉族, doc_type '',
+>>> #   raw_json={"地址":"dsfas"}, medical_ym 202006)
+>>> # 李四 (220100000000-吉林省长春市, id_card 220101198202020066,
+>>> #   phone 13444444444, medical_ym 202006)
+>>> from generator.medical_enroll import generate
+>>> result = generate(batch_id=batch_id, out_dir='outputs')
+>>> print(result)
+{'province': '/home/ubuntu/coding/SI-Batch/outputs/省医保增员.xls', 'city': '/home/ubuntu/coding/SI-Batch/outputs/市医保增员.xls'}
+
+>>> import xlrd
+>>> ws = xlrd.open_workbook('outputs/省医保增员.xls').sheet_by_index(0)
+>>> print("sheet_names:", wb.sheet_names())
+sheet_names: ['Sheet1']
+>>> print("ncols:", ws.ncols)
+ncols: 17
+>>> print("cell_value(1,2):", repr(ws.cell_value(1, 2)))
+cell_value(1, 2): '张三'
+>>> print("cell_value(1,5):", repr(ws.cell_value(1, 5)))
+cell_value(1, 5): 29221.0
+>>> print("cell(1,1) type/value:", ws.cell_type(1, 1), repr(ws.cell_value(1, 1)))
+cell(1,1) type/value: 1 '220101198001010059'
+>>> print("cell(1,13) type/value:", ws.cell_type(1, 13), repr(ws.cell_value(1, 13)))
+cell(1,13) type/value: 1 '13333333333'
+>>> print("cell(1,0):", repr(ws.cell_value(1, 0)))
+cell(1,0): '居民身份证（户口簿）'
+>>> print("cell(1,3):", repr(ws.cell_value(1, 3)))
+cell(1,3): '男'
+>>> print("cell(1,4):", repr(ws.cell_value(1, 4)))
+cell(1,4): '汉族'
+>>> print("cell(1,6):", repr(ws.cell_value(1, 6)))
+cell(1,6): 43527.0
+>>> print("cell(1,7):", repr(ws.cell_value(1, 7)))
+cell(1,7): '本地非农业户口（本地城镇）'
+>>> print("cell(1,8):", repr(ws.cell_value(1, 8)))
+cell(1,8): '未说明的婚姻状况'
+>>> print("cell(1,9):", repr(ws.cell_value(1, 9)))
+cell(1,9): '健康或良好'
+>>> print("cell(1,10):", repr(ws.cell_value(1, 10)))
+cell(1,10): 'dsfas'
+>>> print("cell(1,14):", repr(ws.cell_value(1, 14)))
+cell(1,14): 2500.0
+>>> print("cell(1,15):", repr(ws.cell_value(1, 15)))
+cell(1,15): '非在编'
+>>> print("cell(1,16):", repr(ws.cell_value(1, 16)))
+cell(1,16): 43527.0
+>>> print("header:", [ws.cell_value(0, c) for c in range(ws.ncols)])
+header: ['证件类型', '证件号码', '姓名', '性别', '民族', '出生日期', '首次参加工作日期', '户口性质', '婚姻状态', '健康状况', '居住地址', '居住地邮政编码', '固定电话', '手机号码', '申报工资', '编制类型', '本次参保时间']
+
+>>> ws2 = xlrd.open_workbook('outputs/市医保增员.xls').sheet_by_index(0)
+>>> print("ncols:", ws2.ncols)
+ncols: 17
+>>> print("cell_value(1,2):", repr(ws2.cell_value(1, 2)))
+cell_value(1, 2): '李四'
+>>> print("cell(1,1) type/value:", ws2.cell_type(1, 1), repr(ws2.cell_value(1, 1)))
+cell(1,1) type/value: 1 '220101198202020066'
+>>> print("cell(1,13) type/value:", ws2.cell_type(1, 13), repr(ws2.cell_value(1, 13)))
+cell(1,13) type/value: 1 '13444444444'
+>>> print("cell(1,16):", repr(ws2.cell_value(1, 16)))
+cell(1,16): 43983.0
+>>> print("expected city 本次参保时间 serial('20200601'):", to_excel_serial('20200601'))
+expected city 本次参保时间 serial('20200601'): 43983.0
+>>> print("rows in city file:", ws2.nrows)
+rows in city file: 2
+
+>>> print("serial('19800101'):", to_excel_serial('19800101'))
+serial('19800101'): 29221.0
+>>> print("serial('20061219'):", to_excel_serial('20061219'))
+serial('20061219'): 39070.0
+>>> print("serial('20260701'):", to_excel_serial('20260701'))
+serial('20260701'): 46204.0
+
+>>> db.execute("DELETE FROM import_batches WHERE id = ?", (batch_id,))
+# QA batch removed (CASCADE); no orphan enroll_records left.
+
+Expected: 17 张三 29221.0  →  PASS (ncols=17, cell(1,2)='张三', cell(1,5)=29221.0)
+
+Checks:
+  - 17 columns, header row 0 == columns.MEDICAL_ENROLL_OUTPUT_HEADERS
+    (byte-exact vs template 001 批量职工新参保(增员).xls). PASS
+  - Data starts at row 1 (0-based); fresh xlwt workbook, template sample
+    rows NOT copied (张三 at row 1 proves it). PASS
+  - 省/市 split by 属地 code prefix (before first '-'):
+    229900000000 → 省医保增员.xls (张三); 220100000000 → 市医保增员.xls (李四). PASS
+  - 出生日期 = Excel serial NUMBER 29221.0 (float), not text. PASS
+  - 首次参加工作日期 = serial(contract_start 2019-03-03) = 43527.0 (省 side). PASS
+  - 本次参保时间: 省 = serial(contract_start) = 43527.0;
+    市 = serial(medical_ym 202006 + '01') = 43983.0 == to_excel_serial('20200601'). PASS
+  - 证件号码/手机号码 written as TEXT (xlrd cell_type 1 = XL_CELL_TEXT):
+    '220101198001010059', '13333333333' — no scientific notation / precision loss. PASS
+  - 证件类型 = dict_mapping doc_type ('' → 居民身份证（户口簿）). PASS
+  - 民族 = strip_prefix('01-汉族') = 汉族. PASS
+  - 性别 = derive_gender(id_card) = 男 (17th digit '5' odd). PASS
+  - 户口性质 = dict_mapping household (code prefix '11') = 本地非农业户口（本地城镇）. PASS
+  - 婚姻状态/健康状况/编制类型 = system_defaults (未说明的婚姻状况/健康或良好/非在编). PASS
+  - 居住地址 = raw_json 地址 = 'dsfas'; 居住地邮政编码 = ''; 固定电话 = ''. PASS
+  - 申报工资 = float(contract_salary) = 2500.0 (NUMBER). PASS
+  - Anchors verified: to_excel_serial('19800101')==29221.0,
+    ('20061219')==39070.0, ('20260701')==46204.0 (epoch 1899-12-30). PASS
+  - Return value: {"province": <path>, "city": <path>} — only sides with rows. PASS
+  - Source query: SELECT * FROM enroll_records WHERE batch_id=? AND
+    medical_location IS NOT NULL AND TRIM(medical_location) <> ''. PASS
+  - Idempotent: full QA run executed twice with identical results. PASS
+
+Notes:
+  - generate() reads all dictionaries/defaults from DB (dict_mapping /
+    system_defaults); nothing hardcoded.
+  - 居住地邮政编码 falls back to raw_json key '邮政编码' when present,
+    else '' — written as TEXT.
+  - QA DB rows cleaned up after run; outputs kept as artifacts:
+    outputs/省医保增员.xls, outputs/市医保增员.xls
+  - DB is shared with concurrent tasks (T6/T8/T12 QA rows observed during
+    the run); cleanup verified no orphan enroll_records from this task.
