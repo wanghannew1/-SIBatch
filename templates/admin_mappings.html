@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}映射/字典/默认值配置 - 参保信息收集系统{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">映射 / 字典 / 默认值配置</h4>
+<p class="text-muted">
+  以下配置均为数据库表驱动，保存后各类报盘生成器读取数据库即时生效。
+</p>
+
+<ul class="nav nav-tabs" id="mappingTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="tab-reason" data-bs-toggle="tab"
+            data-bs-target="#pane-reason" type="button" role="tab"
+            aria-controls="pane-reason" aria-selected="true">减员原因映射</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-dict" data-bs-toggle="tab"
+            data-bs-target="#pane-dict" type="button" role="tab"
+            aria-controls="pane-dict" aria-selected="false">字典映射</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-default" data-bs-toggle="tab"
+            data-bs-target="#pane-default" type="button" role="tab"
+            aria-controls="pane-default" aria-selected="false">默认值</button>
+  </li>
+</ul>
+
+<div class="tab-content border-start border-end border-bottom bg-white p-3">
+  {# ---------------- 1. 减员原因映射 ---------------- #}
+  <div class="tab-pane fade show active" id="pane-reason" role="tabpanel"
+       aria-labelledby="tab-reason" tabindex="0">
+    <p class="text-muted small mb-2">
+      合同终止原因（减员表）→ 社保停保原因 / 医保变更原因。按「合同终止原因」唯一，
+      修改已有映射或填写新原因均可保存（upsert）。
+    </p>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="min-width:220px">合同终止原因（来源）</th>
+            <th style="min-width:200px">社保停保原因</th>
+            <th style="min-width:200px">医保变更原因</th>
+            <th style="width:90px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in reasons %}
+          <tr>
+            <td><input type="text" class="form-control form-control-sm" name="source"
+                       form="f-reason-{{ loop.index }}" value="{{ row.source_reason }}" required></td>
+            <td><input type="text" class="form-control form-control-sm" name="social"
+                       form="f-reason-{{ loop.index }}" value="{{ row.social_stop_reason or '' }}"></td>
+            <td><input type="text" class="form-control form-control-sm" name="medical"
+                       form="f-reason-{{ loop.index }}" value="{{ row.medical_change_reason or '' }}"></td>
+            <td>
+              <form id="f-reason-{{ loop.index }}" method="post"
+                    action="{{ url_for('admin_mappings.save_reason') }}">
+                <button type="submit" class="btn btn-outline-primary btn-sm">保存</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-muted">暂无映射，请在下方新增。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="{{ url_for('admin_mappings.save_reason') }}" class="row g-2 mt-2">
+      <div class="col-md-4">
+        <input type="text" class="form-control form-control-sm" name="source" placeholder="新增：合同终止原因" required>
+      </div>
+      <div class="col-md-3">
+        <input type="text" class="form-control form-control-sm" name="social" placeholder="社保停保原因">
+      </div>
+      <div class="col-md-3">
+        <input type="text" class="form-control form-control-sm" name="medical" placeholder="医保变更原因">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary btn-sm">新增映射</button>
+      </div>
+    </form>
+  </div>
+
+  {# ---------------- 2. 字典映射 ---------------- #}
+  <div class="tab-pane fade" id="pane-dict" role="tabpanel"
+       aria-labelledby="tab-dict" tabindex="0">
+    <p class="text-muted small mb-2">
+      字典映射：民族 / 户口性质 / 人员身份 / 证件类型 / 属地→工作地址 等。
+      按（分类 + 来源代码）唯一，来源代码取输入值中「-」前的代码部分。
+    </p>
+    <form method="get" action="{{ url_for('admin_mappings.mappings_page') }}" class="row g-2 mb-3">
+      <div class="col-auto">
+        <select class="form-select form-select-sm" name="category" onchange="this.form.submit()">
+          {% if active_dict_category and active_dict_category not in dict_categories %}
+          <option value="{{ active_dict_category }}" selected>{{ active_dict_category }}</option>
+          {% endif %}
+          {% for cat in dict_categories %}
+          <option value="{{ cat }}" {% if cat == active_dict_category %}selected{% endif %}>{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">切换分类</button>
+      </div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="min-width:260px">来源代码</th>
+            <th style="min-width:260px">目标值</th>
+            <th style="width:160px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in dict_rows %}
+          <tr>
+            <td><input type="text" class="form-control form-control-sm" name="source_code"
+                       form="f-dict-{{ loop.index }}" value="{{ row.source_code }}" required></td>
+            <td><input type="text" class="form-control form-control-sm" name="target_value"
+                       form="f-dict-{{ loop.index }}" value="{{ row.target_value or '' }}"></td>
+            <td class="text-nowrap">
+              <form id="f-dict-{{ loop.index }}" method="post"
+                    action="{{ url_for('admin_mappings.save_dict') }}" class="d-inline">
+                <input type="hidden" name="category" value="{{ row.category }}">
+                <button type="submit" class="btn btn-outline-primary btn-sm">保存</button>
+              </form>
+              <form method="post" action="{{ url_for('admin_mappings.delete_dict') }}" class="d-inline"
+                    onsubmit="return confirm('确认删除该字典映射？');">
+                <input type="hidden" name="category" value="{{ row.category }}">
+                <input type="hidden" name="source_code" value="{{ row.source_code }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm">删除</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="text-muted">当前分类暂无字典项，请在下方新增。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="{{ url_for('admin_mappings.save_dict') }}" class="row g-2 mt-2">
+      <div class="col-md-4">
+        <input type="text" class="form-control form-control-sm" name="category"
+               list="dictCategoryList" placeholder="新增：分类"
+               value="{{ active_dict_category or '' }}" required>
+        <datalist id="dictCategoryList">
+          {% for cat in dict_categories %}
+          <option value="{{ cat }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+      <div class="col-md-4">
+        <input type="text" class="form-control form-control-sm" name="source_code" placeholder="新增：来源代码" required>
+      </div>
+      <div class="col-md-3">
+        <input type="text" class="form-control form-control-sm" name="target_value" placeholder="目标值">
+      </div>
+      <div class="col-md-1">
+        <button type="submit" class="btn btn-primary btn-sm">新增</button>
+      </div>
+    </form>
+  </div>
+
+  {# ---------------- 3. 默认值 ---------------- #}
+  <div class="tab-pane fade" id="pane-default" role="tabpanel"
+       aria-labelledby="tab-default" tabindex="0">
+    <p class="text-muted small mb-2">
+      系统默认值：表单项未填写时使用的默认内容（婚姻状态 / 健康状况 / 编制类型等）。
+      按「键」唯一。
+    </p>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="min-width:220px">键</th>
+            <th style="min-width:280px">值</th>
+            <th style="width:90px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in defaults %}
+          <tr>
+            <td><input type="text" class="form-control form-control-sm" name="key"
+                       form="f-default-{{ loop.index }}" value="{{ row.key }}" required></td>
+            <td><input type="text" class="form-control form-control-sm" name="value"
+                       form="f-default-{{ loop.index }}" value="{{ row.value or '' }}"></td>
+            <td>
+              <form id="f-default-{{ loop.index }}" method="post"
+                    action="{{ url_for('admin_mappings.save_default') }}">
+                <button type="submit" class="btn btn-outline-primary btn-sm">保存</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="text-muted">暂无默认值，请在下方新增。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="{{ url_for('admin_mappings.save_default') }}" class="row g-2 mt-2">
+      <div class="col-md-5">
+        <input type="text" class="form-control form-control-sm" name="key" placeholder="新增：键" required>
+      </div>
+      <div class="col-md-5">
+        <input type="text" class="form-control form-control-sm" name="value" placeholder="值">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary btn-sm">新增</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

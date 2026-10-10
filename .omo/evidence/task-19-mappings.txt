@@ -1,0 +1,62 @@
+T19 — admin 映射/字典/默认值配置页面 + 路由
+证据文件: .omo/evidence/task-19-mappings.txt
+时间: 2026-10-10 08:29:04
+工作目录: /home/ubuntu/coding/SI-Batch
+Python: .venv/bin/python (test_client, 未启动真实服务器)
+
+新增文件:
+- web/admin_mapping.py  (bp = Blueprint("admin_mappings", __name__, url_prefix="/admin/mappings"))
+- templates/admin_mappings.html (extends templates/base.html)
+
+路由:
+- GET  /admin/mappings          配置页 (admin only)
+- POST /admin/mappings/save_reason  source+social+medical  -> upsert ON CONFLICT(source_reason)
+- POST /admin/mappings/save_dict    category+source_code+target_value -> upsert ON CONFLICT(category, source_code)
+- POST /admin/mappings/delete_dict  category+source_code -> DELETE
+- POST /admin/mappings/save_default key+value -> upsert ON CONFLICT(key)
+
+未修改: app.py / auth.py / db.py / config.py / base.html / columns.py / mapping.py / parser/* / generator/*
+
+================ QA 输出 ================
+
+======================================================================
+T19 QA — admin 映射/字典/默认值配置页面 + 路由
+======================================================================
+db path: /home/ubuntu/coding/SI-Batch/si_batch.db
+[PASS] blueprint 已自动注册 | /admin/mappings
+[PASS] 路由 save_reason 存在
+[PASS] 路由 save_dict 存在
+[PASS] 路由 delete_dict 存在
+[PASS] 路由 save_default 存在
+[PASS] admin 登录成功
+[PASS] GET /admin/mappings = 200 | status=200
+[PASS] 页面含「减员原因映射」
+[PASS] 页面含「字典映射」
+[PASS] 页面含「默认值」
+[PASS] 表格含 seed 映射行（合同终止原因）
+[PASS] 页面含分类切换（ethnicity）
+[PASS] 页面含系统默认值行（模板版本）
+[PASS] 未登录访问 -> 302 跳登录
+[PASS] social 角色 GET -> 403 | status=403
+[PASS] social 角色 POST save_reason -> 403 | status=403
+[PASS] 越权写入未生效 | 用人单位辞退 == 用人单位辞退
+[PASS] save_reason 重定向
+[PASS] DB 映射已更新 social=其他原因中断缴费 | 其他原因中断缴费
+[PASS] DB 映射已更新 medical=在职人员解除/终止劳动合同 | 在职人员解除/终止劳动合同
+复用已有减员批次 id=11 (record id=5)
+生成文件: /home/ubuntu/coding/SI-Batch/outputs/t19.xlsx; D2(停保原因)='其他原因中断缴费'; F2(合同终止原因)='01-在试用期被证明不符合录用条件'
+[PASS] 停保原因 = 其他原因中断缴费（映射生效） | cell='其他原因中断缴费'
+[PASS] save_reason 恢复重定向
+[PASS] DB 映射已恢复 social=用人单位辞退 | 用人单位辞退
+[PASS] 重新生成后停保原因回到用人单位辞退 | cell='用人单位辞退'
+[PASS] save_dict 重定向
+[PASS] 字典 upsert 生效 | QA测试民族
+[PASS] 字典已恢复原值 | 汉族
+[PASS] 新增字典行可查 | count=1
+[PASS] delete_dict 重定向
+[PASS] 字典行已删除 | count=0
+[PASS] save_default upsert 生效 | 9.9
+[PASS] 默认值已恢复原值 | 1.0
+----------------------------------------------------------------------
+PASS=32 FAIL=0
+ALL T19 QA CHECKS PASSED
