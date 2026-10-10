@@ -1,0 +1,86 @@
+======================================================================
+T16 — 医保管理员页面 + 路由 QA evidence
+======================================================================
+cwd=/home/ubuntu/coding/SI-Batch  OUTPUT_DIR=/home/ubuntu/coding/SI-Batch/outputs
+
+registered medical routes:
+  /medical                                 ['GET']  -> medical.index
+  /medical/download/<int:oid>              ['GET']  -> medical.download
+  /medical/generate                        ['POST']  -> medical.generate
+
+seeded enroll batch_id=9, reduce batch_id=10
+
+--- login medical1 ---
+[PASS] login medical1
+
+--- GET /medical ---
+[PASS] GET /medical HTTP 200 — status=200
+[PASS] page contains '增员批次'
+[PASS] page contains '减员批次'
+[PASS] page contains '生成记录'
+[PASS] page contains '医保报盘管理'
+
+--- POST /medical/generate?type=enroll&batch_id=9 ---
+[PASS] enroll: generate HTTP 200 — status=200
+[PASS] enroll: >=1 output_batches row — rows=2
+   output_batches: {'id': 5, 'batch_id': 9, 'insurance_type': 'medical', 'batch_type': 'enroll', 'filename': '省医保增员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/省医保增员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+[PASS] enroll: file exists on disk (省医保增员.xls) — /home/ubuntu/coding/SI-Batch/outputs/省医保增员.xls
+[PASS] enroll: file_path is absolute — /home/ubuntu/coding/SI-Batch/outputs/省医保增员.xls
+[PASS] enroll: status='generated'
+[PASS] enroll: generated_by='medical1' — medical1
+[PASS] enroll: batch_id matches
+   output_batches: {'id': 6, 'batch_id': 9, 'insurance_type': 'medical', 'batch_type': 'enroll', 'filename': '市医保增员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/市医保增员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+[PASS] enroll: file exists on disk (市医保增员.xls) — /home/ubuntu/coding/SI-Batch/outputs/市医保增员.xls
+[PASS] enroll: file_path is absolute — /home/ubuntu/coding/SI-Batch/outputs/市医保增员.xls
+[PASS] enroll: status='generated'
+[PASS] enroll: generated_by='medical1' — medical1
+[PASS] enroll: batch_id matches
+[PASS] enroll: 省直 fixture 张三 in 省医保增员.xls — names=['张三']
+
+--- GET /medical/download/<oid> (enroll) ---
+[PASS] enroll: download 省医保增员.xls HTTP 200 — status=200
+[PASS] enroll: download 省医保增员.xls non-empty — bytes=5632
+[PASS] enroll: download 省医保增员.xls xls magic — head=b'\xd0\xcf\x11\xe0'
+[PASS] enroll: download 省医保增员.xls attachment — attachment; filename=.xls; filename*=UTF-8''%E7%9C%81%E5%8C%BB%E4%BF%9D%E5%A2%9E%E5%91%98.xls
+[PASS] enroll: download 市医保增员.xls HTTP 200 — status=200
+[PASS] enroll: download 市医保增员.xls non-empty — bytes=5632
+[PASS] enroll: download 市医保增员.xls xls magic — head=b'\xd0\xcf\x11\xe0'
+[PASS] enroll: download 市医保增员.xls attachment — attachment; filename=.xls; filename*=UTF-8''%E5%B8%82%E5%8C%BB%E4%BF%9D%E5%A2%9E%E5%91%98.xls
+
+--- POST /medical/generate?type=reduce&batch_id=10 ---
+[PASS] reduce: generate HTTP 200 — status=200
+[PASS] reduce: >=1 output_batches row — rows=2
+   output_batches: {'id': 7, 'batch_id': 10, 'insurance_type': 'medical', 'batch_type': 'reduce', 'filename': '省医保减员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/省医保减员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+[PASS] reduce: file exists on disk (省医保减员.xls) — /home/ubuntu/coding/SI-Batch/outputs/省医保减员.xls
+[PASS] reduce: file_path is absolute — /home/ubuntu/coding/SI-Batch/outputs/省医保减员.xls
+[PASS] reduce: status='generated'
+[PASS] reduce: generated_by='medical1' — medical1
+[PASS] reduce: batch_id matches
+   output_batches: {'id': 8, 'batch_id': 10, 'insurance_type': 'medical', 'batch_type': 'reduce', 'filename': '市医保减员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/市医保减员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+[PASS] reduce: file exists on disk (市医保减员.xls) — /home/ubuntu/coding/SI-Batch/outputs/市医保减员.xls
+[PASS] reduce: file_path is absolute — /home/ubuntu/coding/SI-Batch/outputs/市医保减员.xls
+[PASS] reduce: status='generated'
+[PASS] reduce: generated_by='medical1' — medical1
+[PASS] reduce: batch_id matches
+[PASS] reduce: 省直 fixture 张三 in 省医保减员.xls — names=['张三']
+
+--- GET /medical/download/<oid> (reduce) ---
+[PASS] reduce: download 省医保减员.xls HTTP 200 — status=200
+[PASS] reduce: download 省医保减员.xls non-empty — bytes=5632
+[PASS] reduce: download 省医保减员.xls xls magic — head=b'\xd0\xcf\x11\xe0'
+[PASS] reduce: download 省医保减员.xls attachment — attachment; filename=.xls; filename*=UTF-8''%E7%9C%81%E5%8C%BB%E4%BF%9D%E5%87%8F%E5%91%98.xls
+[PASS] reduce: download 市医保减员.xls HTTP 200 — status=200
+[PASS] reduce: download 市医保减员.xls non-empty — bytes=5632
+[PASS] reduce: download 市医保减员.xls xls magic — head=b'\xd0\xcf\x11\xe0'
+[PASS] reduce: download 市医保减员.xls attachment — attachment; filename=.xls; filename*=UTF-8''%E5%B8%82%E5%8C%BB%E4%BF%9D%E5%87%8F%E5%91%98.xls
+
+--- permission: front1 -> /medical ---
+[PASS] front1 GET /medical -> 403 — status=403
+[PASS] front1 POST /medical/generate -> 403 — status=403
+
+--- cleanup test batches (CASCADE) ---
+[PASS] cleanup: no orphan output_batches — left=0
+
+======================================================================
+RESULT: 51/51 checks passed
+======================================================================
