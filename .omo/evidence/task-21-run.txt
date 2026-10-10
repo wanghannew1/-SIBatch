@@ -1,0 +1,82 @@
+=== T21 QA — 2026-10-10 08:50:44 ===
+------------------------------------------------------------
+[1] port check before start
+PORT_5000_FREE
+------------------------------------------------------------
+[2] cwd-independence: run script by ABSOLUTE path from / (cwd=/)
+  launched: /home/ubuntu/coding/SI-Batch/run.sh (from /), pid=138368, log=/tmp/opencode/task21-run.log
+  log head:
+    [run.sh] 启动 SI-Batch：本机 http://127.0.0.1:5000 ，局域网 http://<服务器IP>:5000
+    Listening on 0.0.0.0:5000
+     * Serving Flask app 'app'
+     * Debug mode: off
+    INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+  poll command: curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/login
+HTTP=200 (after 1s)
+  pid=138368 children=[138369]
+  after kill: PORT_5000_FREE
+------------------------------------------------------------
+[3] spec run: ./run.sh from repo root (cwd=/home/ubuntu/coding/SI-Batch)
+  launched: ./run.sh (from /home/ubuntu/coding/SI-Batch), pid=138388, log=/tmp/opencode/task21-run.log
+  log content:
+    [run.sh] 启动 SI-Batch：本机 http://127.0.0.1:5000 ，局域网 http://<服务器IP>:5000
+    Listening on 0.0.0.0:5000
+     * Serving Flask app 'app'
+     * Debug mode: off
+    INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+     * Running on all addresses (0.0.0.0)
+     * Running on http://127.0.0.1:5000
+     * Running on http://172.29.233.88:5000
+    INFO:werkzeug:[33mPress CTRL+C to quit[0m
+  poll command: curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/login
+HTTP=200 (after 2s)
+  sanity: GET /login title -> <title>登录 · 参保信息收集系统</title>
+  pid=138388 children=[138389]
+------------------------------------------------------------
+[4] post-kill checks
+  PORT_5000_FREE
+  lingering app.py processes: NONE
+------------------------------------------------------------
+[5] init/seed idempotency (README claim, run twice)
+  run1 OK -> /home/ubuntu/coding/SI-Batch/si_batch.db
+  run2 OK -> /home/ubuntu/coding/SI-Batch/si_batch.db
+------------------------------------------------------------
+[6] default accounts in DB (README table cross-check vs auth.SEED_USERS)
+  seed=admin      role=admin    db_row={'username': 'admin', 'role': 'admin', 'display_name': '系统管理员'}
+  seed=front1     role=front    db_row={'username': 'front1', 'role': 'front', 'display_name': '前台业务员'}
+  seed=social1    role=social   db_row={'username': 'social1', 'role': 'social', 'display_name': '社保管理员'}
+  seed=medical1   role=medical  db_row={'username': 'medical1', 'role': 'medical', 'display_name': '医保管理员'}
+------------------------------------------------------------
+[7] listening socket proof while up was: curl HTTP=200 on /login (see [2]/[3])
+=== T21 QA DONE — 2026-10-10 08:50:47 ===
+
+=== APPENDIX: password check (README claims admin/admin123, others 123456) ===
+  (cross-check auth.SEED_USERS plaintext vs stored hash)
+  admin      password=MATCH
+  front1     password=MATCH
+  social1    password=MATCH
+  medical1   password=MATCH
+
+=== APPENDIX: .gitignore (confirm README.md / run.sh NOT ignored) ===
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+uploads/
+outputs/
+*.db
+.omo/run-continuation/
+  -> README.md: NOT matched by any rule above (not ignored)
+  -> run.sh: NOT matched by any rule above (not ignored)
+
+=== APPENDIX: deliverables ===
+-rw-r--r-- 1 ubuntu ubuntu 3534 10月 10 08:52 /home/ubuntu/coding/SI-Batch/.omo/evidence/task-21-run.txt
+-rw-r--r-- 1 ubuntu ubuntu 7349 10月 10 08:48 /home/ubuntu/coding/SI-Batch/README.md
+-rwxr-xr-x 1 ubuntu ubuntu 1414 10月 10 08:49 /home/ubuntu/coding/SI-Batch/run.sh
+
+=== APPENDIX: existing source files untouched (mtimes, pre-task dates) ===
+-rw-r--r-- 1 ubuntu ubuntu  4762 10月 10 08:32 /home/ubuntu/coding/SI-Batch/app.py
+-rw-r--r-- 1 ubuntu ubuntu  6446 10月  9 15:22 /home/ubuntu/coding/SI-Batch/auth.py
+-rw-r--r-- 1 ubuntu ubuntu  1046 10月  9 15:16 /home/ubuntu/coding/SI-Batch/config.py
+-rw-r--r-- 1 ubuntu ubuntu 20776 10月  9 15:40 /home/ubuntu/coding/SI-Batch/db.py
+-rw-r--r-- 1 ubuntu ubuntu    52 10月  9 15:15 /home/ubuntu/coding/SI-Batch/requirements.txt
