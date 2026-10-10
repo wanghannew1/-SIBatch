@@ -96,7 +96,7 @@ def index():
     return _render()
 
 
-@bp.post("/generate")
+@bp.route("/generate", methods=["GET", "POST"])
 @auth.login_required
 @auth.require_role("medical", "admin")
 def generate():

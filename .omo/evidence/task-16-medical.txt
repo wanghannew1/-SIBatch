@@ -84,3 +84,109 @@ seeded enroll batch_id=9, reduce batch_id=10
 ======================================================================
 RESULT: 51/51 checks passed
 ======================================================================
+======================================================================
+T16-FIX — GET+POST /medical/generate (route decorator change)
+======================================================================
+cwd=/home/ubuntu/coding/SI-Batch
+File changed : web/medical.py (1 line, line 99)
+Reason       : plan QA runs
+               curl -b cookie http://localhost:5000/medical/generate?type=enroll&batch_id=1
+               (a GET) and expects 200; forbidden roles expect 403, not the
+               405 that POST-only produced.
+
+--- CHANGE ---
+$ diff -u <(pre) <(post) web/medical.py
+--- pre  ---
+   99: @bp.post("/generate")
+--- post ---
+   99: @bp.route("/generate", methods=["GET", "POST"])
+
+Byte/line delta: 196 lines both before and after; 5383 -> 5409 bytes.
+No other line in web/medical.py was touched (verified by reverting the
+single line and comparing the two texts for equality).
+
+--- collect commands (each run with /home/ubuntu/coding/SI-Batch/.venv/bin/python) ---
+
+$ .venv/bin/python -m py_compile web/medical.py && echo COMPILE_OK
+COMPILE OK
+
+$ .venv/bin/python -c "
+    from app import create_app
+    app = create_app()
+    for r in app.url_map.iter_rules():
+        if 'medical' in r.rule:
+            print(f'  {r.rule:38s} {sorted(r.methods)}  ->  {r.endpoint}')"
+  /medical                               ['GET', 'HEAD', 'OPTIONS']  ->  medical.index
+  /medical/generate                      ['GET', 'HEAD', 'OPTIONS', 'POST']  ->  medical.generate   <-- both verbs
+  /medical/download/<int:oid>            ['GET', 'HEAD', 'OPTIONS']  ->  medical.download
+
+--- valid reduce batch (db.import_batches) ---
+$ .venv/bin/python -c "
+    import db
+    [print(dict(r)) for r in db.query_all(
+        \"SELECT id, batch_type, filename, status, total_rows FROM import_batches
+         WHERE batch_type='reduce' ORDER BY id\")]"
+{'id': 11, 'batch_type': 'reduce', 'filename': '合同解除批量导入模板 (减员).xls', 'status': 'imported', 'total_rows': 1}
+-> REDUCE_BATCH_ID = 11
+
+--- verification script (app.test_client, no live server) ---
+$ .venv/bin/python /tmp/opencode/t16_verify.py 11
+======================================================================
+T16-ADDENDUM — GET+POST /medical/generate (route decorator change)
+======================================================================
+cwd=/home/ubuntu/coding/SI-Batch  OUTPUT_DIR=/home/ubuntu/coding/SI-Batch/outputs
+
+--- target batch (db.import_batches, batch_type='reduce') ---
+    {'id': 11, 'batch_type': 'reduce', 'filename': '合同解除批量导入模板 (减员).xls', 'status': 'imported', 'total_rows': 1}
+--- output_batches BEFORE  (batch_id=11, n=1) ---
+    {'id': 17, 'batch_id': 11, 'insurance_type': 'social', 'batch_type': 'reduce', 'filename': 'social_reduce_b11.xlsx', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/social_reduce_b11.xlsx', 'status': 'generated', 'generated_by': 'social1'}
+
+--- check 1: front1 GET /medical/generate -> 403 (not 405) ---
+[PASS] front1 GET  /medical/generate -> 403 (expect 403, was 405 before the fix)
+
+--- check 2: medical1 GET /medical/generate?type=reduce&batch_id=11 -> 302 ---
+[PASS] GET  /medical/generate?type=reduce&batch_id=11 -> 302 Location=/medical
+
+--- output_batches AFTER GET (batch_id=11, n=3) ---
+    {'id': 17, 'batch_id': 11, 'insurance_type': 'social', 'batch_type': 'reduce', 'filename': 'social_reduce_b11.xlsx', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/social_reduce_b11.xlsx', 'status': 'generated', 'generated_by': 'social1'}
+    {'id': 29, 'batch_id': 11, 'insurance_type': 'medical', 'batch_type': 'reduce', 'filename': '省医保减员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/省医保减员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+    {'id': 30, 'batch_id': 11, 'insurance_type': 'medical', 'batch_type': 'reduce', 'filename': '市医保减员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/市医保减员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+[PASS] rows for batch_id=11: 1 -> 3 (expect +1 per generated file)
+[PASS] output file 省/市 exists (省医保减员.xls) -> /home/ubuntu/coding/SI-Batch/outputs/省医保减员.xls size=5632
+[PASS] output file 省/市 exists (市医保减员.xls) -> /home/ubuntu/coding/SI-Batch/outputs/市医保减员.xls size=5632
+[PASS] generated file_path exists (省医保减员.xls, id=29) -> /home/ubuntu/coding/SI-Batch/outputs/省医保减员.xls
+[PASS] generated file_path exists (市医保减员.xls, id=30) -> /home/ubuntu/coding/SI-Batch/outputs/市医保减员.xls
+[PASS] newly inserted rows are insurance_type='medical' (n_new=2, note: pre-existing social row id=17 not ours)
+
+--- check 3: medical1 POST ?type=reduce&batch_id=11 -> 302 ---
+[PASS] POST /medical/generate?type=reduce&batch_id=11 -> 302 Location=/medical
+--- output_batches AFTER POST (batch_id=11, n=5) ---
+    {'id': 17, 'batch_id': 11, 'insurance_type': 'social', 'batch_type': 'reduce', 'filename': 'social_reduce_b11.xlsx', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/social_reduce_b11.xlsx', 'status': 'generated', 'generated_by': 'social1'}
+    {'id': 29, 'batch_id': 11, 'insurance_type': 'medical', 'batch_type': 'reduce', 'filename': '省医保减员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/省医保减员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+    {'id': 30, 'batch_id': 11, 'insurance_type': 'medical', 'batch_type': 'reduce', 'filename': '市医保减员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/市医保减员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+    {'id': 31, 'batch_id': 11, 'insurance_type': 'medical', 'batch_type': 'reduce', 'filename': '省医保减员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/省医保减员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+    {'id': 32, 'batch_id': 11, 'insurance_type': 'medical', 'batch_type': 'reduce', 'filename': '市医保减员.xls', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/市医保减员.xls', 'status': 'generated', 'generated_by': 'medical1'}
+[PASS] rows for batch_id=11: 1 -> 3 -> 5
+
+--- check 4: verb/role matrix — 403 (forbidden) vs 302 (allowed) ---
+[PASS] front1 GET /medical/generate -> 403 (expect 403)
+[PASS] front1 POST /medical/generate -> 403 (expect 403)
+[PASS] social1 GET /medical/generate -> 403 (expect 403)
+[PASS] social1 POST /medical/generate -> 403 (expect 403)
+
+======================================================================
+DONE
+======================================================================
+
+notes:
+- The n_new=2 rows above are exactly the two files medical_reduce.generate()
+  writes (省医保减员.xls / 市医保减员.xls) — one output_batches row per file,
+  insurance_type='medical', generated_by='medical1', absolute file_path,
+  status='generated'.
+- Param reading (request.values.get("type"/"batch_id")), role checks, batch
+  existence/type validation, generator dispatch, output_batches insertion and
+  the redirect to url_for("medical.index") were NOT modified.
+
+======================================================================
+RESULT: 13/13 checks passed
+======================================================================
