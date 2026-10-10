@@ -1,0 +1,65 @@
+=== T8 verification: generator/social_enroll.py ===
+template: 输入输出/输出/社保失业工伤/企业职工批量参保登记模板 -20260902-1227(增员).xlsx
+output: outputs/test_social_enroll.xlsx
+batch_id: 14, records written: 1 (张三)
+
+--- main output (plan QA command) ---
+ws.cell(3,3/4,3/5,3/5,5/5,6).value = ('*姓名', '小明', '张三', '男', '19800101')
+expected: ('*姓名', '小明', '张三', '男', '19800101')
+main output: PASS
+
+--- 企业养老/失业/工伤 cells (N5/O5/P5) ---
+企业养老=N5='是' 失业保险=O5='否' 工伤保险=P5='否'
+source values: participate_pension='1-是' -> 是; participate_unemployment='' -> 否; participate_injury='' -> 否
+NOTE/plan discrepancy: plan T8 acceptance says 是/是/是 (assuming 1-是 for all three),
+but the real 增员 sample only fills 养老保险=1-是 (失业/工伤 blank). Generator maps
+faithfully from actual cell values (blank -> 否), so actual = 是/否/否. Not forced.
+
+--- full data row R5 (27 cols A:AA) ---
+  '*证件类型' = '居民身份证（户口簿）'
+  '*证件号码' = '220101198001010059'
+  '*姓名' = '张三'
+  '*民族' = '汉族'
+  '*性别' = '男'
+  '*出生日期' = '19800101'
+  '*参加工作日期' = '20190303'
+  '*国籍' = '中国'
+  '农民工标识' = '非农民工'
+  '*人员身份' = '职员'
+  '临时账户标识' = '一般账户'
+  '*申报工资' = '2500'
+  '*参保日期' = '20190303'
+  '企业养老' = '是'
+  '失业保险' = '否'
+  '工伤保险' = '否'
+  '是否兼职工伤' = '否'
+  '户口所在地址' = 'dsfas'
+  '常住地址' = 'dsfas'
+  '*工作所在地址' = '长春市市本级'
+  '*联系电话' = '13333333333'
+  '参保身份' = '企业职工'
+  '实际工作单位编号' = None
+  '实际工作单位名称' = None
+  '实际工作单位统一社会信用代码' = None
+  '外国人永久居留中文名称\n' = None
+  '模板版本' = '1.0'
+
+--- structure preservation ---
+template merged ranges: ['A1:U1', 'C2:D2', 'E2:L2', 'N2:P2', 'R2:U2']
+output merged ranges:   ['A1:U1', 'C2:D2', 'E2:L2', 'N2:P2', 'R2:U2']
+merges preserved (output == template): PASS
+note: columns.SOCIAL_ENROLL_OUTPUT_MERGED_RANGES lists only 4 ranges (missing E2:L2);
+the real template has 5 (A1:U1, C2:D2, E2:L2, N2:P2, R2:U2). Generator keeps all 5.
+R3 headers byte-exact (27 cols): PASS
+R4 sample row 小明 preserved: PASS (C4='小明')
+R4 A4 doc-type formula input preserved: '居民身份证（户口簿）'
+R2: A2='单位编号:' B2(unit_code)=None C2='单位名称:' E2(unit_name)=None
+unit_config(social): unit_code=None unit_name=None -> R2 left as-is (None, not invented)
+
+--- DB dict/default provenance ---
+dict_mapping rows: 153
+system_defaults rows: 9
+output_batches row: batch_id=14 type=social/enroll by='qa-t8' file='test_social_enroll.xlsx'
+
+--- exclusions ---
+only records with non-empty social_location are included (省工伤 excluded); fixture has social_location set
