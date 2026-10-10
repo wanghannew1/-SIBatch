@@ -52,7 +52,7 @@ def index():
     )
 
 
-@bp.post("/generate")
+@bp.route("/generate", methods=["GET", "POST"])
 @auth.require_role(*_ROLES)
 def generate():
     """按批次生成社保报盘（type=enroll|reduce，batch_id 为 import_batches.id）。

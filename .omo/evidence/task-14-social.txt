@@ -20,3 +20,31 @@ method: Flask test_client (no live server)
     POST generate batch_id=999999 -> 302 redirect: /social/
 
 ALL CHECKS DONE
+
+=== T14 fix: /social/generate must accept GET as well as POST (QA uses curl GET) ===
+reason: plan QA runs `curl -b cookie http://localhost:5000/social/generate?type=enroll&batch_id=1`
+       (GET) and expects 200/302, and forbidden roles must get 403 rather than 405.
+change: web/social.py only — route decorator @bp.post("/generate") -> @bp.route("/generate", methods=["GET", "POST"])
+        No other change: param reading (request.args/request.form for type/batch_id), role checks
+        (auth.require_role(social, admin)), output_batches insertion, flash/redirect logic untouched.
+
+method: Flask app.test_client() via .venv/bin/python (no live server run)
+script: /tmp/opencode/t14_social_verify.py
+
+commands + output:
+
+$ cd /home/ubuntu/coding/SI-Batch && .venv/bin/python /tmp/opencode/t14_social_verify.py
+1. front1 GET  /social/generate?type=enroll&batch_id=1 -> 403 (expect 403)
+   check: True
+2. social1 GET  /social/generate?type=enroll&batch_id=1 -> 302 (expect 302) | Location: /social/
+   check: True
+3. social1 POST /social/generate?type=enroll&batch_id=1 -> 302 (expect 302) | Location: /social/
+   check: True
+   output_batches rows for enroll batch 1: [{'id': 16, ...}, {'id': 18, ...}, {'id': 19, ...}, {'id': 20, ...}]
+ALL CHECKS DONE
+
+checks:
+- front1 (role=front, not in (social, admin)) GET -> 403 (not 405)      PASS
+- social1 (role=social) GET with type=enroll&batch_id=1 -> 302          PASS
+- social1 (role=social) POST with same params -> 302                    PASS
+- side effect: output_batches rows still recorded per generate call     PASS
