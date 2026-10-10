@@ -1,0 +1,23 @@
+T6 — 文本保真 QA evidence (task-6-precision)
+Date: 2026-10-09
+CWD: /home/ubuntu/coding/SI-Batch
+Python: .venv/bin/python (xlrd 2.0.2)
+
+================================================================
+Command — print salary_account of first parsed record
+================================================================
+$ .venv/bin/python -c "from parser.enroll_parser import parse; r = parse('输入输出/输入/合同批量导入模板 (增员).xls'); print(r['records'][0]['salary_account'])"
+
+Observed output:
+6200000000000000
+
+Expected: 6200000000000000 (16 位完整，非科学计数)  ✅ MATCH
+
+Additional edge-case verification (synthetic .xls via xlwt, not part of required QA):
+- XL_CELL_NUMBER integral values render as full integer strings, never scientific
+  notation (e.g. 6200000000000000.0 -> '6200000000000000', 2500.0 -> '2500').
+- XL_CELL_DATE cells convert via xlrd.xldate to 'yyyy-mm-dd' (serial 43527 -> '2019-03-03').
+- Sparse/never-written cells (xlrd IndexError) treated as empty string.
+- Validation: row with empty 姓名 -> {'row': 6, 'reason': '姓名不能为空'};
+  row with 5-char id_card -> {'row': 7, 'reason': '身份证号码必须为18位'};
+  fully-blank rows skipped silently; invalid rows NOT inserted.

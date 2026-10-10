@@ -1,0 +1,39 @@
+T6 — 增员表解析器 QA evidence (task-6-parse)
+Date: 2026-10-09
+CWD: /home/ubuntu/coding/SI-Batch
+Python: .venv/bin/python (xlrd 2.0.2)
+
+================================================================
+Command 1 — parse real template, print key fields
+================================================================
+$ .venv/bin/python -c "from parser.enroll_parser import parse; r = parse('输入输出/输入/合同批量导入模板 (增员).xls'); print(len(r['records'])); print(r['records'][0]['name']); print(r['records'][0]['id_card']); print(r['records'][0]['contract_salary'])"
+
+Observed output:
+1
+张三
+220101198001010059
+2500
+
+Expected: 张三 220101198001010059 2500  ✅ MATCH
+
+================================================================
+Command 2 — verify DB persistence (import_batches + enroll_records)
+================================================================
+$ cat > /tmp/opencode/qa_db_check.py <<'EOF'
+import db
+b = db.query_one("SELECT id, batch_type, filename, total_rows, status FROM import_batches ORDER BY id DESC LIMIT 1")
+r = db.query_one("SELECT id, batch_id, name, id_card, gender, birthday, salary_account FROM enroll_records ORDER BY id DESC LIMIT 1")
+print("import_batches:", tuple(b))
+print("enroll_records:", tuple(r))
+EOF
+$ PYTHONPATH=/home/ubuntu/coding/SI-Batch .venv/bin/python /tmp/opencode/qa_db_check.py
+
+Observed output:
+import_batches: (8, 'enroll', '合同批量导入模板 (增员).xls', 1, 'imported')
+enroll_records: (5, 8, '张三', '220101198001010059', '男', '19800101', '6200000000000000')
+
+Notes:
+- import_batches row inserted: batch_type='enroll', total_rows=1 (valid records), status='imported' ✅
+- enroll_records row inserted with batch_id FK, gender=男 / birthday=19800101 derived from id_card ✅
+- salary_account stored as full 16-digit text '6200000000000000' (no precision loss) ✅
+- errors list empty for the real template (single valid 张三 row) ✅
