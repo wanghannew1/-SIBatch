@@ -32,6 +32,32 @@ def _import_packages():
     return imported
 
 
+def _register_web_blueprints(app):
+    """自动注册 web/ 包下所有暴露 `bp` 的蓝图模块（Wave 3: T13-T19）。
+
+    每个 Wave 3 任务只创建自己的 web/<name>.py + 模板，无需改动 app.py，
+    从而避免并行任务在共享文件上的写冲突。
+    """
+    import importlib
+    import pkgutil
+
+    import web
+
+    registered = 0
+    for mod in pkgutil.iter_modules(web.__path__):
+        try:
+            module = importlib.import_module(f"web.{mod.name}")
+        except Exception as exc:
+            app.logger.warning("web.%s 暂不可用: %s", mod.name, exc)
+            continue
+        bp = getattr(module, "bp", None)
+        if bp is not None:
+            app.register_blueprint(bp)
+            registered += 1
+    if registered:
+        app.logger.info("registered %d web blueprint(s)", registered)
+
+
 def create_app():
     app = Flask(
         __name__,
@@ -47,6 +73,9 @@ def create_app():
     # 认证：注册蓝图并幂等写入种子账号（admin / front1 / social1 / medical1）
     app.register_blueprint(auth.auth_bp)
     auth.ensure_seed_users()
+
+    # Wave 3 页面蓝图（web/*.py，自动发现）
+    _register_web_blueprints(app)
 
     @app.get("/healthz")
     def healthz():
