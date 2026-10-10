@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}社保管理{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0">社保报盘管理</h1>
+  <span class="text-muted small">选择批次生成社保增员 / 减员报盘，并下载已生成文件</span>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white d-flex align-items-center">
+        <span class="badge bg-primary me-2">增</span>
+        <strong>增员批次</strong>
+        <span class="ms-auto text-muted small">{{ enroll_batches|length }} 个批次</span>
+      </div>
+      <div class="card-body">
+        {% if enroll_batches %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>文件名</th>
+                <th>上传时间</th>
+                <th>条数</th>
+                <th class="text-end">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in enroll_batches %}
+              <tr>
+                <td>{{ b.id }}</td>
+                <td class="text-truncate" style="max-width: 220px" title="{{ b.filename }}">{{ b.filename }}</td>
+                <td>{{ b.uploaded_at }}</td>
+                <td>{{ b.total_rows }}</td>
+                <td class="text-end">
+                  <form method="post" action="{{ url_for('social.generate') }}" class="d-inline">
+                    <input type="hidden" name="type" value="enroll">
+                    <input type="hidden" name="batch_id" value="{{ b.id }}">
+                    <button type="submit" class="btn btn-sm btn-primary">生成</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">暂无增员批次，请先在前台上传增员表。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white d-flex align-items-center">
+        <span class="badge bg-danger me-2">减</span>
+        <strong>减员批次</strong>
+        <span class="ms-auto text-muted small">{{ reduce_batches|length }} 个批次</span>
+      </div>
+      <div class="card-body">
+        {% if reduce_batches %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>文件名</th>
+                <th>上传时间</th>
+                <th>条数</th>
+                <th class="text-end">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in reduce_batches %}
+              <tr>
+                <td>{{ b.id }}</td>
+                <td class="text-truncate" style="max-width: 220px" title="{{ b.filename }}">{{ b.filename }}</td>
+                <td>{{ b.uploaded_at }}</td>
+                <td>{{ b.total_rows }}</td>
+                <td class="text-end">
+                  <form method="post" action="{{ url_for('social.generate') }}" class="d-inline">
+                    <input type="hidden" name="type" value="reduce">
+                    <input type="hidden" name="batch_id" value="{{ b.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger">生成</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">暂无减员批次，请先在前台上传减员表。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-4">
+  <div class="card-header bg-white d-flex align-items-center">
+    <strong>生成记录</strong>
+    <span class="ms-auto text-muted small">社保报盘输出历史</span>
+  </div>
+  <div class="card-body">
+    {% if outputs %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>文件名</th>
+            <th>生成时间</th>
+            <th>生成人</th>
+            <th>状态</th>
+            <th class="text-end">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in outputs %}
+          <tr>
+            <td>{{ o.id }}</td>
+            <td>{{ o.filename }}</td>
+            <td>{{ o.generated_at }}</td>
+            <td>{{ o.generated_by or '-' }}</td>
+            <td>
+              {% if o.status == 'generated' %}
+              <span class="badge bg-success">已生成</span>
+              {% else %}
+              <span class="badge bg-secondary">{{ o.status }}</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('social.download', oid=o.id) }}">下载</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">暂无生成记录。</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+=== T14 verification: web/social.py + templates/social.html ===
+method: Flask test_client (no live server)
+
+1. login social1 -> 302 redirect: /
+2a. reused existing enroll batch_id 1
+2b. reused existing reduce batch_id 11
+3. GET /social -> 200 | 增员批次: True | 减员批次: True | 生成记录: True
+4. POST generate enroll -> 302 redirect: /social/
+   output_batches row: {'id': 16, 'batch_id': 1, 'insurance_type': 'social', 'batch_type': 'enroll', 'generated_by': 'social1', 'generated_at': '2026-10-10 08:27:34', 'filename': 'social_enroll_b1.xlsx', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/social_enroll_b1.xlsx', 'status': 'generated'}
+   file exists: True | path: /home/ubuntu/coding/SI-Batch/outputs/social_enroll_b1.xlsx
+5. GET download enroll oid 16 -> 200 | len: 34823 | magic: True
+6. POST generate reduce -> 302 redirect: /social/
+   output_batches row: {'id': 17, 'batch_id': 11, 'insurance_type': 'social', 'batch_type': 'reduce', 'generated_by': 'social1', 'generated_at': '2026-10-10 08:27:34', 'filename': 'social_reduce_b11.xlsx', 'file_path': '/home/ubuntu/coding/SI-Batch/outputs/social_reduce_b11.xlsx', 'status': 'generated'}
+   file exists: True | path: /home/ubuntu/coding/SI-Batch/outputs/social_reduce_b11.xlsx
+7. GET download reduce oid 17 -> 200 | len: 5034 | magic: True
+8. front1 POST /social/generate -> 403 (expect 403)
+   front1 GET /social -> 403 (expect 403)
+9. re-generate enroll: rows 1 -> 2 | +1 per call: True
+10. POST generate type=bogus -> 302 redirect: /social/
+    POST generate batch_id=999999 -> 302 redirect: /social/
+
+ALL CHECKS DONE
