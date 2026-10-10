@@ -1,0 +1,52 @@
+T17 — admin 用户管理页面 + 路由 (web/admin_users.py + templates/admin_users.html)
+QA 方法：Flask test_client（未启动真实服务器 / 未用 curl 长连接）
+账号：admin/admin123, front1/123456, test_social/123456 -> social
+============================================================
+============================================================
+STEP 1 — admin 登录 (POST /login)
+  status        : 302 (expect 302)
+  Location      : / (expect /)
+============================================================
+STEP 2 — admin 新增 test_social (POST /admin/users/add)
+  status        : 302 (expect 302/200 -> redirect)
+  Location      : /admin/users
+  DB row        : {'id': 5, 'username': 'test_social', 'role': 'social', 'display_name': '测试社保', 'password_hash': 'scrypt:32768:8:1$fmpQi6Y1IyzxWldu$0c273f908e485b64f9e6518526a7548dc494dcb1a74d6d9f4f885fa2b034d7832afac67c6b62dbc1d1dee7a5ee45b6a483aa6219f9f2b1c44918c01577e41841', 'created_at': '2026-10-10 08:26:54'}
+  hash verifies : True (generate_password_hash stored, not plaintext)
+============================================================
+STEP 3 — fresh client 登录 test_social/123456
+  status        : 302 (expect 302)
+  Location      : / (expect /)
+  GET / status  : 200 (expect 200, login succeeded)
+============================================================
+EXTRA A — admin 编辑 test_social (POST /admin/users/edit/5)
+  status        : 302 (expect 302)
+  after edit    : role=medical display_name=测试医保
+  new pw verif. : True
+============================================================
+EXTRA B — 重复用户名 admin 新增 (POST /admin/users/add, UNIQUE 冲突)
+  status        : 200 (expect 200, flash error, no 500)
+============================================================
+EXTRA C — 非 admin (front1) 访问 /admin/users
+  status        : 403 (expect 403)
+============================================================
+STEP 4 — admin 删除 test_social (POST /admin/users/delete/5)
+  status        : 302 (expect 302)
+  DB row after  : None (expect None)
+  login status  : 200 (expect 200 — stays on /login)
+  Location      : None (expect None)
+============================================================
+FINAL users table:
+  id=1 username=admin role=admin
+  id=2 username=front1 role=front
+  id=3 username=social1 role=social
+  id=4 username=medical1 role=medical
+============================================================
+  [PASS] STEP1 admin login 302
+  [PASS] STEP2 add row + hashed
+  [PASS] STEP3 test_social login + land /
+  [PASS] EXTRA A edit role/pw
+  [PASS] EXTRA B duplicate no crash
+  [PASS] EXTRA C non-admin 403
+  [PASS] STEP4 delete + row gone
+  [PASS] STEP4 login fails after delete
+OVERALL: PASS
