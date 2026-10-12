@@ -1,0 +1,27 @@
+[startup] 2/2
+[anon] 2/2
+[login] 4/4
+[dashboard] 4/4
+[rbac] 18/18
+[enroll-upload] 1/1
+[enroll-db] 2/2
+[enroll-precision] 1/1
+[gen-social-enroll] 1/1
+[gen-social-enroll-file] 3/3
+[reduce-upload] 1/1
+[reduce-db] 1/1
+[gen-social-reduce] 1/1
+[gen-social-reduce-file] 4/4
+[gen-medical-reduce] 1/1
+[gen-medical-reduce-file] 3/3
+[pi-crud] 5/5
+[pi-import] 2/2
+[pi-generate] 2/2
+[admin-units] 2/2
+[admin-users] 4/4
+[admin-mappings] 2/2
+[edge-empty] 1/1
+[edge-ext] 1/1
+[edge-nofile] 1/1
+[edge-badid] 1/1
+Total 70/70 pass
