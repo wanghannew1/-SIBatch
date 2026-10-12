@@ -26,9 +26,8 @@ from mapping import dash_date_to_yyyymmdd
 HEADERS = tuple(SOCIAL_REDUCE_OUTPUT_HEADERS)
 
 _SOURCE_SQL = (
-    "SELECT * FROM province_injury "
-    "WHERE stop_date IS NOT NULL AND TRIM(stop_date) <> '' "
-    "ORDER BY id"
+    "SELECT * FROM province_injury WHERE id IN ({placeholders})"
+    " AND stop_date IS NOT NULL AND TRIM(stop_date) <> '' ORDER BY id"
 )
 
 
@@ -41,12 +40,16 @@ def _normalize_stop_date(value):
     return normalized if normalized is not None else text
 
 
-def generate(out, *, generated_by=None):
-    """生成省工伤减员报盘 .xlsx，返回输出文件路径。
+def generate(record_ids, out, *, generated_by=None):
+    """按选中人员生成省工伤减员报盘 .xlsx，返回输出文件路径。
 
-    generated_by 为操作人标识，预留用于后续生成审计（output_batches）。
+    record_ids 为 province_injury.id 列表（仅停保人员可生成）。
+    generated_by 为操作人标识，预留用于生成审计（output_batches）。
     """
-    rows = db.query_all(_SOURCE_SQL)
+    if not record_ids:
+        return out
+    sql = _SOURCE_SQL.format(placeholders=",".join("?" * len(record_ids)))
+    rows = db.query_all(sql, tuple(record_ids))
 
     wb = Workbook()
     ws = wb.active

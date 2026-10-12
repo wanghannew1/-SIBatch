@@ -66,8 +66,9 @@ _RECORD_PARAMS = (
 )
 
 _INSERT_BATCH = (
-    "INSERT INTO import_batches (batch_type, filename, uploaded_by, total_rows, status)"
-    " VALUES ('enroll', ?, ?, ?, 'imported')"
+    "INSERT INTO import_batches"
+    " (batch_type, filename, uploaded_by, total_rows, status, stored_name)"
+    " VALUES ('enroll', ?, ?, ?, 'imported', ?)"
 )
 
 _INSERT_RECORD = (
@@ -162,7 +163,10 @@ def parse(path, *, filename=None, uploaded_by=None):
         record["raw_json"] = json.dumps(values, ensure_ascii=False)
         records.append(record)
 
-    batch_id, _ = execute(_INSERT_BATCH, (filename, uploaded_by, len(records)))
+    batch_id, _ = execute(
+        _INSERT_BATCH,
+        (filename, uploaded_by, len(records), os.path.basename(path)),
+    )
 
     for record in records:
         record["batch_id"] = batch_id

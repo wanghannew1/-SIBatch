@@ -24,8 +24,8 @@ from mapping import dash_date_to_yyyymmdd
 HEADERS = tuple(SOCIAL_REDUCE_OUTPUT_HEADERS) + (SOCIAL_REDUCE_OUTPUT_APPEND_COLUMN,)
 
 _SELECT_RECORDS = (
-    "SELECT * FROM reduce_records WHERE batch_id = ? AND social_reduce_ym IS NOT NULL"
-    " AND TRIM(social_reduce_ym) <> '' ORDER BY id"
+    "SELECT * FROM reduce_records WHERE id IN ({placeholders})"
+    " AND social_reduce_ym IS NOT NULL AND TRIM(social_reduce_ym) <> '' ORDER BY id"
 )
 
 _SELECT_STOP_REASON = (
@@ -41,14 +41,17 @@ def _stop_reason(terminate_reason):
     return terminate_reason or ""
 
 
-def generate(batch_id, out, *, generated_by=None):
-    """生成社保减员报盘 .xlsx，返回输出文件路径。
+def generate(record_ids, out, *, generated_by=None):
+    """按选中人员生成社保减员报盘 .xlsx，返回输出文件路径。
 
-    batch_id      — import_batches.id（减员批次）
+    record_ids    — reduce_records.id 列表（跨批次）
     out           — 输出 .xlsx 路径（新建文件）
     generated_by  — 生成人（保留参数，供调用方记录）
     """
-    rows = query_all(_SELECT_RECORDS, (batch_id,))
+    if not record_ids:
+        return out
+    sql = _SELECT_RECORDS.format(placeholders=",".join("?" * len(record_ids)))
+    rows = query_all(sql, tuple(record_ids))
 
     from openpyxl import Workbook
 

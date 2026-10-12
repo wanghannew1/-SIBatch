@@ -1,0 +1,38 @@
+<form method="get" class="row g-2 align-items-end mb-3">
+  <input type="hidden" name="ptype" value="{{ active }}">
+  <div class="col-auto">
+    <input class="form-control form-control-sm" type="text" name="keyword"
+           value="{{ filters.keyword or '' }}" placeholder="姓名 / 身份证号">
+  </div>
+  <div class="col-auto">
+    <select class="form-select form-select-sm" name="batch_id">
+      <option value="">全部批次</option>
+      {% for b in batch_options %}
+      <option value="{{ b.id }}" {% if filters.batch_id == b.id %}selected{% endif %}>#{{ b.id }} {{ b.filename }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select class="form-select form-select-sm" name="uploaded_by">
+      <option value="">全部上传人</option>
+      {% for u in uploader_options %}
+      <option value="{{ u }}" {% if filters.uploaded_by == u %}selected{% endif %}>{{ u }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select class="form-select form-select-sm" name="reported">
+      <option value="">全部状态</option>
+      <option value="0" {% if filters.reported == 0 %}selected{% endif %}>未报盘</option>
+      <option value="1" {% if filters.reported == 1 %}selected{% endif %}>已报盘</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <input class="form-control form-control-sm" type="text" name="location"
+           value="{{ filters.location or '' }}" placeholder="参保属地">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-primary" type="submit">筛选</button>
+    <a class="btn btn-sm btn-outline-secondary" href="?ptype={{ active }}">重置</a>
+  </div>
+</form>

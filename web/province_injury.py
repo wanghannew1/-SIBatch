@@ -14,6 +14,7 @@
 import json
 import os
 import time
+from datetime import datetime
 
 import xlrd
 from flask import (
@@ -284,16 +285,32 @@ def _extract_enroll_rows(path):
 # ---------------------------------------------------------------------------
 # 路由
 # ---------------------------------------------------------------------------
+def _parse_filters(args):
+    keyword = (args.get("keyword") or "").strip() or None
+    reported_raw = (args.get("reported") or "").strip()
+    reported = {"1": 1, "0": 0}.get(reported_raw)
+    location = (args.get("location") or "").strip() or None
+    return dict(keyword=keyword, reported=reported, location=location)
+
+
 @bp.route("", methods=["GET"])
 @auth.require_role(auth.ROLE_SOCIAL, auth.ROLE_ADMIN)
 def index():
     rows = [dict(r) for r in db.query_all(_LIST_SQL)]
     add_fields = [f for f in _FORM_FIELDS if f[3] in _ADD_GROUPS]
+    filters = _parse_filters(request.args)
+    stop_persons = db.list_injury_persons(**filters)
+    outputs = db.query_all(
+        "SELECT * FROM output_batches WHERE insurance_type = 'injury' ORDER BY id DESC"
+    )
     return render_template(
         "province_injury.html",
         rows=rows,
         form_fields=_FORM_FIELDS,
         add_fields=add_fields,
+        stop_persons=stop_persons,
+        filters=filters,
+        outputs=outputs,
     )
 
 
@@ -384,22 +401,83 @@ def import_roster():
     return redirect(url_for("province_injury.index"))
 
 
-@bp.route("/generate", methods=["GET"])
+@bp.route("/generate", methods=["POST"])
 @auth.require_role(auth.ROLE_SOCIAL, auth.ROLE_ADMIN)
 def generate():
+    """按选中停保人员生成省工伤减员报盘，写入 output_batches + output_records。"""
     from generator import province_injury_reduce
 
-    out = os.path.join(config.OUTPUT_DIR, "province_injury_reduce.xlsx")
-    user = auth.current_user()
-    province_injury_reduce.generate(
-        out=out, generated_by=user["username"] if user else None
+    ids = []
+    for value in request.form.getlist("record_ids"):
+        value = value.strip()
+        if value.isdigit():
+            ids.append(int(value))
+    ids = list(dict.fromkeys(ids))
+
+    if not ids:
+        flash("请至少勾选一名停保人员", "danger")
+        return redirect(url_for("province_injury.index"))
+
+    placeholders = ",".join("?" * len(ids))
+    already_rows = db.query_all(
+        f"SELECT DISTINCT o.record_id FROM output_records o"
+        f" JOIN output_batches ob ON ob.id = o.output_id"
+        f" WHERE o.record_type = 'injury' AND ob.insurance_type = 'injury'"
+        f" AND o.record_id IN ({placeholders})",
+        tuple(ids),
     )
+    already = {r["record_id"] for r in already_rows}
+    fresh_ids = [i for i in ids if i not in already]
+    skipped = len(ids) - len(fresh_ids)
+    if not fresh_ids:
+        flash("所选人员均已生成过工伤减员报盘", "warning")
+        return redirect(url_for("province_injury.index"))
+
+    user = auth.current_user()
+    username = user["username"] if user else None
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"province_injury_reduce_{ts}.xlsx"
+    out = os.path.join(config.OUTPUT_DIR, filename)
+
+    try:
+        province_injury_reduce.generate(fresh_ids, out=out, generated_by=username)
+    except Exception as exc:
+        flash(f"生成失败：{exc}", "danger")
+        return redirect(url_for("province_injury.index"))
+
+    output_id, _ = db.execute(
+        "INSERT INTO output_batches"
+        " (batch_id, insurance_type, batch_type, generated_by, filename,"
+        "  file_path, status, record_count)"
+        " VALUES (NULL, 'injury', 'reduce', ?, ?, ?, 'generated', ?)",
+        (username, filename, out, len(fresh_ids)),
+    )
+    for rid in fresh_ids:
+        db.execute(
+            "INSERT INTO output_records (output_id, record_id, record_type)"
+            " VALUES (?, ?, 'injury')",
+            (output_id, rid),
+        )
+
+    message = f"已生成省工伤减员报盘，包含 {len(fresh_ids)} 人"
+    if skipped:
+        message += f"（已跳过 {skipped} 个已报盘记录）"
+    flash(message, "success")
+    return redirect(url_for("province_injury.index"))
+
+
+@bp.route("/download/<int:oid>", methods=["GET"])
+@auth.require_role(auth.ROLE_SOCIAL, auth.ROLE_ADMIN)
+def download(oid):
+    """下载已生成的省工伤减员报盘文件（attachment）。"""
+    row = db.query_one(
+        "SELECT * FROM output_batches WHERE id = ? AND insurance_type = 'injury'",
+        (oid,),
+    )
+    if row is None or not row["file_path"] or not os.path.isfile(row["file_path"]):
+        abort(404)
     return send_file(
-        out,
+        row["file_path"],
         as_attachment=True,
-        download_name="省工伤减员报盘.xlsx",
-        mimetype=(
-            "application/vnd.openxmlformats-officedocument."
-            "spreadsheetml.sheet"
-        ),
+        download_name=row["filename"] or os.path.basename(row["file_path"]),
     )

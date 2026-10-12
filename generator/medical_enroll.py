@@ -19,6 +19,7 @@ generated_by 目前未使用，仅保留在签名中以兼容调用方接口。
 
 import json
 import os
+from datetime import datetime
 
 import xlwt
 
@@ -33,8 +34,8 @@ from mapping import (
     yyyymm_to_date,
 )
 
-_PROVINCE_FILE = "省医保增员.xls"
-_CITY_FILE = "市医保增员.xls"
+_PROVINCE_FILE = "省医保增员"
+_CITY_FILE = "市医保增员"
 _PROVINCE_CODE_PREFIX = "2299"
 
 _TEXT_COLUMNS = frozenset(
@@ -141,20 +142,26 @@ def _write_workbook(path, rows, mapping, defaults, is_province):
     wb.save(path)
 
 
-def generate(batch_id, out_dir, *, generated_by=None):
-    """生成医保增员报盘（省/市两个 .xls），返回写出的文件路径字典。
+def generate(record_ids, out_dir, *, generated_by=None):
+    """按选中人员生成医保增员报盘（省/市两个 .xls）。
 
     只取 medical_location 非空的 enroll_records；按属地代码前缀拆分：
     2299…（省直）→ 省医保增员.xls，其余（2201…等）→ 市医保增员.xls。
-    只写出有数据的侧，返回形如 {"province": "<path>", "city": "<path>"}。
+    只写出有数据的侧，返回形如
+    {"province": {"path": str, "record_ids": [...]}, "city": {...}}（仅有数据的侧）。
     """
     mapping = _load_dict()
     defaults = _load_defaults()
 
+    if not record_ids:
+        return {}
+
+    placeholders = ",".join("?" * len(record_ids))
     records = db.query_all(
-        "SELECT * FROM enroll_records WHERE batch_id = ?"
-        " AND medical_location IS NOT NULL AND TRIM(medical_location) <> ''",
-        (batch_id,),
+        f"SELECT * FROM enroll_records WHERE id IN ({placeholders})"
+        " AND medical_location IS NOT NULL AND TRIM(medical_location) <> ''"
+        " ORDER BY id",
+        tuple(record_ids),
     )
 
     province_rows = []
@@ -166,14 +173,19 @@ def generate(batch_id, out_dir, *, generated_by=None):
             city_rows.append(record)
 
     os.makedirs(out_dir, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     written = {}
-    for key, rows, filename, is_province in (
+    for key, rows, base_name, is_province in (
         ("province", province_rows, _PROVINCE_FILE, True),
         ("city", city_rows, _CITY_FILE, False),
     ):
+        filename = f"{base_name}_{ts}.xls"
         if not rows:
             continue
         path = os.path.join(out_dir, filename)
         _write_workbook(path, rows, mapping, defaults, is_province)
-        written[key] = os.path.abspath(path)
+        written[key] = {
+            "path": os.path.abspath(path),
+            "record_ids": [r["id"] for r in rows],
+        }
     return written

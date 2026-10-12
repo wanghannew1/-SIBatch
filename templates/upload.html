@@ -90,6 +90,7 @@
                 <th>上传人</th>
                 <th>时间</th>
                 <th class="text-end">条数</th>
+                <th class="text-end">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -103,20 +104,104 @@
                   <span class="badge bg-info text-dark">减员</span>
                   {% endif %}
                 </td>
-                <td class="text-truncate" style="max-width: 18rem" title="{{ b.filename }}">{{ b.filename }}</td>
+                <td class="text-truncate" style="max-width: 16rem" title="{{ b.filename }}">{{ b.filename }}</td>
                 <td>{{ b.uploaded_by or '-' }}</td>
                 <td>{{ b.uploaded_at }}</td>
                 <td class="text-end">{{ b.total_rows }}</td>
+                <td class="text-end text-nowrap">
+                  <a href="/upload/batch/{{ b.id }}" class="btn btn-sm btn-outline-secondary">查看</a>
+                  {% if b.locked %}
+                  <span class="badge bg-warning text-dark ms-1" title="已生成报盘，不可删除">已报盘</span>
+                  {% elif b.can_delete %}
+                  <form method="post" action="/upload/batch/{{ b.id }}/delete" class="d-inline"
+                        onsubmit="return confirm('确定删除批次 #{{ b.id }}（{{ b.total_rows }} 条）？此操作不可恢复。');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger ms-1">删除</button>
+                  </form>
+                  {% else %}
+                  <span class="text-muted ms-1" title="仅可删除自己上传的批次">—</span>
+                  {% endif %}
+                </td>
               </tr>
               {% else %}
               <tr>
-                <td colspan="6" class="text-center text-muted py-4">暂无导入批次</td>
+                <td colspan="7" class="text-center text-muted py-4">暂无导入批次</td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-4">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">人员信息</h5>
+    <span class="badge bg-secondary">{{ persons|length }}</span>
+  </div>
+  <div class="card-body">
+    <ul class="nav nav-tabs mb-3">
+      <li class="nav-item">
+        <a class="nav-link {% if persons_active == 'enroll' %}active{% endif %}" href="?ptype=enroll">增员人员</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if persons_active == 'reduce' %}active{% endif %}" href="?ptype=reduce">减员人员</a>
+      </li>
+    </ul>
+
+    {% set active = persons_active %}
+    {% include "_person_filter.html" %}
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 4rem">#</th>
+            <th>姓名</th>
+            <th>身份证号</th>
+            {% if persons_active == 'enroll' %}
+            <th>社保参保属地</th>
+            <th>医保参保属地</th>
+            {% else %}
+            <th>社保报减年月</th>
+            <th>医保报减年月</th>
+            {% endif %}
+            <th>批次</th>
+            <th>上传人</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in persons %}
+          <tr>
+            <td class="text-muted">{{ p.id }}</td>
+            <td>{{ p.name }}</td>
+            <td>{{ p.id_card }}</td>
+            {% if persons_active == 'enroll' %}
+            <td class="text-truncate" style="max-width: 13rem" title="{{ p.social_location }}">{{ p.social_location or '-' }}</td>
+            <td class="text-truncate" style="max-width: 13rem" title="{{ p.medical_location }}">{{ p.medical_location or '-' }}</td>
+            {% else %}
+            <td>{{ p.social_reduce_ym or '-' }}</td>
+            <td>{{ p.medical_reduce_ym or '-' }}</td>
+            {% endif %}
+            <td>#{{ p.batch_id }}</td>
+            <td>{{ p.uploaded_by or '-' }}</td>
+            <td>
+              {% if p.reported %}
+              <span class="badge bg-warning text-dark">已报盘</span>
+              {% else %}
+              <span class="badge bg-success">未报盘</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">暂无{{ type_labels[persons_active] }}人员</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>

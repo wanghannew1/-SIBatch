@@ -6,3 +6,5 @@ uploads/
 outputs/
 *.db
 .omo/run-continuation/
+.opencode/
+opencode.json

@@ -13,6 +13,7 @@ reduce_records 无 medical_location 列：按 id_card 回查 enroll_records
 from __future__ import annotations
 
 import os
+from datetime import datetime
 
 import xlwt
 
@@ -24,16 +25,16 @@ from columns import (
 )
 from db import query_all, query_one
 
-PROVINCE_FILENAME = "省医保减员.xls"
-CITY_FILENAME = "市医保减员.xls"
+PROVINCE_FILENAME = "省医保减员"
+CITY_FILENAME = "市医保减员"
 
 _PROVINCE_LOCATION_PREFIX = "2299"
 
 _DEFAULT_DOC_TYPE = "居民身份证（户口簿）"
 
 _SELECT_RECORDS = (
-    "SELECT * FROM reduce_records WHERE batch_id = ? AND medical_reduce_ym IS NOT NULL"
-    " AND TRIM(medical_reduce_ym) <> '' ORDER BY id"
+    "SELECT * FROM reduce_records WHERE id IN ({placeholders})"
+    " AND medical_reduce_ym IS NOT NULL AND TRIM(medical_reduce_ym) <> '' ORDER BY id"
 )
 
 _SELECT_LOCATION = (
@@ -64,16 +65,20 @@ def _is_province(location):
     return code.startswith(_PROVINCE_LOCATION_PREFIX)
 
 
-def generate(batch_id, out_dir, *, generated_by=None):
-    """生成省/市医保减员报盘 .xls，返回写入文件路径。
+def generate(record_ids, out_dir, *, generated_by=None):
+    """按选中人员生成省/市医保减员报盘 .xls。
 
-    batch_id      — import_batches.id（减员批次）
+    record_ids    — reduce_records.id 列表（跨批次）
     out_dir       — 输出目录（不存在时自动创建）
     generated_by  — 生成人（保留参数，供调用方记录）
 
-    返回 {"province": 省医保减员.xls 路径, "city": 市医保减员.xls 路径}。
+    返回 {"province": {"path": str, "record_ids": [...]}, "city": {...}}（仅有数据的侧）。
     """
-    rows = query_all(_SELECT_RECORDS, (batch_id,))
+    if not record_ids:
+        return {}
+
+    sql = _SELECT_RECORDS.format(placeholders=",".join("?" * len(record_ids)))
+    rows = query_all(sql, tuple(record_ids))
     doc_type = _doc_type()
 
     province_rows = []
@@ -102,9 +107,10 @@ def generate(batch_id, out_dir, *, generated_by=None):
             ws.write(r, 2, str(record["id_card"] or ""))
         path = os.path.join(out_dir, filename)
         wb.save(path)
-        return path
+        return {"path": path, "record_ids": [r["id"] for r in record_rows]}
 
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     return {
-        "province": _write(PROVINCE_FILENAME, province_rows),
-        "city": _write(CITY_FILENAME, city_rows),
+        "province": _write(f"{PROVINCE_FILENAME}_{ts}.xls", province_rows),
+        "city": _write(f"{CITY_FILENAME}_{ts}.xls", city_rows),
     }

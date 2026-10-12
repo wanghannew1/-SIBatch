@@ -1,14 +1,117 @@
 {% extends "base.html" %}
 {% block title %}省工伤人员信息管理{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">省工伤人员信息管理</h4>
-  <a class="btn btn-primary" href="{{ url_for('province_injury.generate') }}">
-    生成并下载减员报盘
-  </a>
+<h4 class="mb-3">省工伤人员信息管理</h4>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">工伤减员报盘（停保人员）</h5>
+    <span class="badge bg-secondary">{{ stop_persons|length }}</span>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end mb-3">
+      <div class="col-auto">
+        <input class="form-control form-control-sm" type="text" name="keyword"
+               value="{{ filters.keyword or '' }}" placeholder="姓名 / 身份证号">
+      </div>
+      <div class="col-auto">
+        <select class="form-select form-select-sm" name="reported">
+          <option value="">全部状态</option>
+          <option value="0" {% if filters.reported == 0 %}selected{% endif %}>未报盘</option>
+          <option value="1" {% if filters.reported == 1 %}selected{% endif %}>已报盘</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <input class="form-control form-control-sm" type="text" name="location"
+               value="{{ filters.location or '' }}" placeholder="社保参保属地">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary" type="submit">筛选</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('province_injury.index') }}">重置</a>
+      </div>
+    </form>
+
+    <form method="post" action="{{ url_for('province_injury.generate') }}">
+      <div class="table-responsive mb-3">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 2.5rem"><input type="checkbox" id="check-all" class="form-check-input"></th>
+              <th>姓名</th>
+              <th>身份证号</th>
+              <th>停保日期</th>
+              <th>停保原因</th>
+              <th>社保属地</th>
+              <th>报盘状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in stop_persons %}
+            <tr>
+              <td>
+                {% if p.reported %}
+                <input type="checkbox" class="form-check-input" disabled title="已生成减员报盘">
+                {% else %}
+                <input type="checkbox" class="form-check-input" name="record_ids" value="{{ p.id }}">
+                {% endif %}
+              </td>
+              <td>{{ p.name }}</td>
+              <td class="font-monospace small">{{ p.id_card }}</td>
+              <td>{{ p.stop_date or '-' }}</td>
+              <td class="text-truncate" style="max-width: 14rem" title="{{ p.stop_reason }}">{{ p.stop_reason or '-' }}</td>
+              <td class="text-truncate" style="max-width: 14rem" title="{{ p.social_location }}">{{ p.social_location or '-' }}</td>
+              <td>
+                {% if p.reported %}
+                <span class="badge bg-warning text-dark">已报盘</span>
+                {% else %}
+                <span class="badge bg-success">未报盘</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">暂无停保人员</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <button type="submit" class="btn btn-primary">生成工伤减员报盘</button>
+    </form>
+
+    {% if outputs %}
+    <h6 class="mt-4 mb-2">生成记录</h6>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>文件名</th>
+            <th class="text-end">人数</th>
+            <th>生成人</th>
+            <th>时间</th>
+            <th class="text-end">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in outputs %}
+          <tr>
+            <td>{{ o.filename }}</td>
+            <td class="text-end">{{ o.record_count }}</td>
+            <td>{{ o.generated_by or '-' }}</td>
+            <td>{{ o.generated_at }}</td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('province_injury.download', oid=o.id) }}">下载</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
 </div>
 
-<div class="row g-3 mb-4">
+<div class="row g-3">
   <!-- 新增人员 -->
   <div class="col-lg-5">
     <div class="card shadow-sm h-100">
@@ -160,6 +263,15 @@
       input.value = (value === null || value === undefined) ? '' : value;
     });
   });
+  var checkAll = document.getElementById('check-all');
+  if (checkAll) {
+    checkAll.addEventListener('change', function () {
+      var checked = this.checked;
+      document.querySelectorAll('input[name="record_ids"]:not(:disabled)').forEach(function (box) {
+        box.checked = checked;
+      });
+    });
+  }
 })();
 </script>
 {% endblock %}

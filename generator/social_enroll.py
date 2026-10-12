@@ -113,19 +113,25 @@ def _record_values(record, mapping, defaults):
     )
 
 
-def generate(batch_id, out, *, generated_by=None):
-    """生成社保增员报盘，返回输出路径。
+def generate(record_ids, out, *, generated_by=None):
+    """按选中人员生成社保增员报盘，返回输出路径。
 
-    只取 social_location 非空的 enroll_records（市社保报盘；省工伤不走此报盘）。
-    unit_config(social) 为 NULL 时 R2 保持模板原样，不臆造值。
+    ``record_ids`` 为 enroll_records.id 列表（跨批次）。只取 social_location
+    非空的记录（市社保报盘；省工伤不走此报盘）。unit_config(social) 为 NULL
+    时 R2 保持模板原样，不臆造值。
     """
     mapping = _load_dict()
     defaults = _load_defaults()
 
+    if not record_ids:
+        return out
+
+    placeholders = ",".join("?" * len(record_ids))
     records = db.query_all(
-        "SELECT * FROM enroll_records WHERE batch_id = ?"
-        " AND social_location IS NOT NULL AND TRIM(social_location) <> ''",
-        (batch_id,),
+        f"SELECT * FROM enroll_records WHERE id IN ({placeholders})"
+        " AND social_location IS NOT NULL AND TRIM(social_location) <> ''"
+        " ORDER BY id",
+        tuple(record_ids),
     )
 
     wb = openpyxl.load_workbook(_template_path())
@@ -150,10 +156,4 @@ def generate(batch_id, out, *, generated_by=None):
     os.makedirs(out_dir, exist_ok=True)
     wb.save(out)
 
-    db.execute(
-        "INSERT INTO output_batches"
-        " (batch_id, insurance_type, batch_type, generated_by, filename, file_path)"
-        " VALUES (?, 'social', 'enroll', ?, ?, ?)",
-        (batch_id, generated_by, os.path.basename(out), out),
-    )
     return out

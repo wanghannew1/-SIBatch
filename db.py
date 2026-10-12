@@ -91,7 +91,8 @@ SCHEMA = (
         uploaded_by TEXT,
         uploaded_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
         total_rows  INTEGER NOT NULL DEFAULT 0,
-        status      TEXT NOT NULL DEFAULT 'imported'
+        status      TEXT NOT NULL DEFAULT 'imported',
+        stored_name TEXT
     )
     """,
     # ---------------- 增员记录 ----------------
@@ -199,13 +200,24 @@ SCHEMA = (
     CREATE TABLE IF NOT EXISTS output_batches (
         id             INTEGER PRIMARY KEY AUTOINCREMENT,
         batch_id       INTEGER REFERENCES import_batches(id) ON DELETE CASCADE,
-        insurance_type TEXT NOT NULL CHECK (insurance_type IN ('social', 'medical')),
+        insurance_type TEXT NOT NULL CHECK (insurance_type IN ('social', 'medical', 'injury')),
         batch_type     TEXT NOT NULL CHECK (batch_type IN ('enroll', 'reduce')),
         generated_by   TEXT,
         generated_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
         filename       TEXT,
         file_path      TEXT,
-        status         TEXT NOT NULL DEFAULT 'generated'
+        status         TEXT NOT NULL DEFAULT 'generated',
+        record_count   INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    # ---------------- 报盘-人员关联（跨批次按人生成） ----------------
+    """
+    CREATE TABLE IF NOT EXISTS output_records (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        output_id   INTEGER NOT NULL REFERENCES output_batches(id) ON DELETE CASCADE,
+        record_id   INTEGER NOT NULL,
+        record_type TEXT NOT NULL CHECK (record_type IN ('enroll', 'reduce', 'injury')),
+        UNIQUE (output_id, record_id, record_type)
     )
     """,
 )
@@ -223,6 +235,8 @@ INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_province_injury_id_card ON province_injury(id_card)",
     "CREATE INDEX IF NOT EXISTS idx_province_injury_status ON province_injury(status)",
     "CREATE INDEX IF NOT EXISTS idx_output_batches_batch ON output_batches(batch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_output_records_record ON output_records(record_type, record_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_output_records_link ON output_records(output_id, record_id, record_type)",
 )
 
 
@@ -248,14 +262,122 @@ def db_session():
         conn.close()
 
 
+def _migrate(conn):
+    """给已有库补加后来新增的列（幂等）。
+
+    项目演进中向既有表追加列时，旧的 ``si_batch.db`` 不会因
+    ``CREATE TABLE IF NOT EXISTS`` 自动获得新列；这里按需 ``ALTER TABLE``。
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(import_batches)").fetchall()}
+    if "stored_name" not in cols:
+        conn.execute("ALTER TABLE import_batches ADD COLUMN stored_name TEXT")
+
+    out_cols = {row[1] for row in conn.execute("PRAGMA table_info(output_batches)").fetchall()}
+    if "record_count" not in out_cols:
+        conn.execute(
+            "ALTER TABLE output_batches ADD COLUMN record_count INTEGER NOT NULL DEFAULT 0"
+        )
+
+    _backfill_output_records(conn)
+
+
+def _backfill_output_records(conn):
+    """把旧的按批次 output_batches 补写 output_records 关联（幂等）。
+
+    按 insurance_type 复刻生成器的业务过滤（社保增员取 social_location 非空
+    等），只回填尚无 output_records 关联的旧记录，并同步 record_count。
+    """
+    for insurance, batch_type, table, filter_col in (
+        ("social", "enroll", "enroll_records", "social_location"),
+        ("social", "reduce", "reduce_records", "social_reduce_ym"),
+        ("medical", "enroll", "enroll_records", "medical_location"),
+        ("medical", "reduce", "reduce_records", "medical_reduce_ym"),
+    ):
+        conn.execute(
+            f"INSERT INTO output_records (output_id, record_id, record_type)"
+            f" SELECT o.id, r.id, '{batch_type}'"
+            f" FROM output_batches o"
+            f" JOIN {table} r ON r.batch_id = o.batch_id"
+            f" WHERE o.insurance_type = '{insurance}'"
+            f" AND o.batch_type = '{batch_type}'"
+            f" AND o.batch_id IS NOT NULL"
+            f" AND r.{filter_col} IS NOT NULL AND TRIM(r.{filter_col}) <> ''"
+            f" AND NOT EXISTS (SELECT 1 FROM output_records x"
+            f"                 WHERE x.output_id = o.id AND x.record_id = r.id"
+            f"                   AND x.record_type = '{batch_type}')"
+        )
+    conn.execute(
+        "UPDATE output_batches SET record_count ="
+        " (SELECT COUNT(*) FROM output_records x WHERE x.output_id = output_batches.id)"
+    )
+
+
+_OUTPUT_BATCHES_CREATE = """
+CREATE TABLE output_batches (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id       INTEGER REFERENCES import_batches(id) ON DELETE CASCADE,
+    insurance_type TEXT NOT NULL CHECK (insurance_type IN ('social', 'medical', 'injury')),
+    batch_type     TEXT NOT NULL CHECK (batch_type IN ('enroll', 'reduce')),
+    generated_by   TEXT,
+    generated_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    filename       TEXT,
+    file_path      TEXT,
+    status         TEXT NOT NULL DEFAULT 'generated',
+    record_count   INTEGER NOT NULL DEFAULT 0
+)
+"""
+
+_OUTPUT_RECORDS_CREATE = """
+CREATE TABLE output_records (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    output_id   INTEGER NOT NULL REFERENCES output_batches(id) ON DELETE CASCADE,
+    record_id   INTEGER NOT NULL,
+    record_type TEXT NOT NULL CHECK (record_type IN ('enroll', 'reduce', 'injury')),
+    UNIQUE (output_id, record_id, record_type)
+)
+"""
+
+
+def _migrate_check_constraints():
+    """更新 output_batches/output_records 的 CHECK 约束以支持 'injury'（幂等）。
+
+    SQLite 不支持 ALTER 修改 CHECK，只能重建表；用独立连接并在
+    foreign_keys=OFF 下重建，避免外键干扰。索引随后由 INDEXES 重建。
+    """
+    conn = sqlite3.connect(DATABASE)
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'output_batches'"
+        ).fetchone()
+        if row and "'injury'" not in row[0]:
+            conn.execute("ALTER TABLE output_batches RENAME TO output_batches_old")
+            conn.execute(_OUTPUT_BATCHES_CREATE)
+            conn.execute("INSERT INTO output_batches SELECT * FROM output_batches_old")
+            conn.execute("DROP TABLE output_batches_old")
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'output_records'"
+        ).fetchone()
+        if row and "'injury'" not in row[0]:
+            conn.execute("ALTER TABLE output_records RENAME TO output_records_old")
+            conn.execute(_OUTPUT_RECORDS_CREATE)
+            conn.execute("INSERT INTO output_records SELECT * FROM output_records_old")
+            conn.execute("DROP TABLE output_records_old")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def init_db():
     """Create all tables and indexes if missing. Idempotent."""
+    _migrate_check_constraints()
     conn = get_conn()
     try:
         for stmt in SCHEMA:
             conn.execute(stmt)
         for stmt in INDEXES:
             conn.execute(stmt)
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()
@@ -321,6 +443,122 @@ def execute_many(sql, seq_of_params):
         raise
     finally:
         conn.close()
+
+
+def list_person_records(record_type, *, insurance_type=None, keyword=None,
+                        batch_id=None, uploaded_by=None, reported=None, location=None):
+    """返回人员明细（enroll/reduce）与其所属批次、是否已报盘，支持过滤。
+
+    ``insurance_type`` 限定报盘类型（'social'/'medical'）；``None`` 表示任意
+    险种已报盘即视为已报盘（用于 front 总览）。``reported`` 传 0/1 过滤是否
+    已生成报盘；``location`` 仅对 enroll（social_location / medical_location）
+    生效。每行含人员字段（p.*）、批次字段（batch_id/batch_type/uploaded_by/
+    uploaded_at/filename）与 ``reported``(0/1)。
+    """
+    if record_type == "enroll":
+        cols = (
+            "p.id, p.name, p.id_card, p.social_location, p.medical_location,"
+            " p.social_status, p.medical_status, p.contract_start, p.contract_end"
+        )
+        table = "enroll_records p"
+        location_clause = "(p.social_location LIKE ? OR p.medical_location LIKE ?)"
+    else:
+        cols = (
+            "p.id, p.name, p.id_card, p.terminate_date, p.social_reduce_ym,"
+            " p.medical_reduce_ym, p.terminate_reason, p.social_status, p.medical_status"
+        )
+        table = "reduce_records p"
+        location_clause = None
+
+    reported_expr = (
+        " EXISTS(SELECT 1 FROM output_records o"
+        "        JOIN output_batches ob ON ob.id = o.output_id"
+        "        WHERE o.record_type = ? AND o.record_id = p.id"
+        "          AND (? IS NULL OR ob.insurance_type = ?)) AS reported"
+    )
+    sql = (
+        f"SELECT {cols},"
+        " b.id AS batch_id, b.batch_type, b.uploaded_by, b.uploaded_at, b.filename,"
+        + reported_expr +
+        f" FROM {table} JOIN import_batches b ON b.id = p.batch_id"
+    )
+    params = [record_type, insurance_type, insurance_type]
+    where = []
+
+    if keyword:
+        like = f"%{keyword}%"
+        where.append("(p.name LIKE ? OR p.id_card LIKE ?)")
+        params.extend([like, like])
+    if batch_id is not None:
+        where.append("b.id = ?")
+        params.append(batch_id)
+    if uploaded_by:
+        where.append("b.uploaded_by = ?")
+        params.append(uploaded_by)
+    if reported is not None:
+        exists = "EXISTS" if reported else "NOT EXISTS"
+        where.append(
+            f"{exists}(SELECT 1 FROM output_records o"
+            " JOIN output_batches ob ON ob.id = o.output_id"
+            " WHERE o.record_type = ? AND o.record_id = p.id"
+            " AND (? IS NULL OR ob.insurance_type = ?))"
+        )
+        params.extend([record_type, insurance_type, insurance_type])
+    if location and location_clause:
+        like = f"%{location}%"
+        where.append(location_clause)
+        params.extend([like, like])
+
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY p.id DESC"
+
+    return query_all(sql, tuple(params))
+
+
+def list_injury_persons(*, keyword=None, reported=None, location=None):
+    """返回省工伤需减员人员（stop_date 非空）与是否已生成工伤减员报盘。
+
+    ``None`` 表示不过滤；``reported`` 传 0/1 过滤是否已报盘；``location``
+    按社保参保属地（social_location）模糊过滤。每行含 id/name/id_card/
+    stop_date/stop_reason/social_location/status 与 ``reported``(0/1)。
+    """
+    reported_expr = (
+        " EXISTS(SELECT 1 FROM output_records o"
+        "        JOIN output_batches ob ON ob.id = o.output_id"
+        "        WHERE o.record_type = 'injury' AND o.record_id = p.id"
+        "          AND ob.insurance_type = 'injury') AS reported"
+    )
+    sql = (
+        "SELECT p.id, p.name, p.id_card, p.stop_date, p.stop_reason,"
+        " p.social_location, p.status,"
+        + reported_expr
+        + " FROM province_injury p"
+        " WHERE p.stop_date IS NOT NULL AND TRIM(p.stop_date) <> ''"
+    )
+    params = []
+    where = []
+    if keyword:
+        like = f"%{keyword}%"
+        where.append("(p.name LIKE ? OR p.id_card LIKE ?)")
+        params.extend([like, like])
+    if reported is not None:
+        exists = "EXISTS" if reported else "NOT EXISTS"
+        where.append(
+            f"{exists}(SELECT 1 FROM output_records o"
+            " JOIN output_batches ob ON ob.id = o.output_id"
+            " WHERE o.record_type = 'injury' AND o.record_id = p.id"
+            " AND ob.insurance_type = 'injury')"
+        )
+    if location:
+        like = f"%{location}%"
+        where.append("p.social_location LIKE ?")
+        params.append(like)
+    if where:
+        sql += " AND " + " AND ".join(where)
+    sql += " ORDER BY p.id DESC"
+
+    return query_all(sql, tuple(params))
 
 
 # =====================================================================

@@ -1,104 +1,87 @@
 {% extends "base.html" %}
 {% block title %}社保管理{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
   <h1 class="h3 mb-0">社保报盘管理</h1>
-  <span class="text-muted small">选择批次生成社保增员 / 减员报盘，并下载已生成文件</span>
+  <span class="text-muted small">勾选人员生成社保增员 / 减员报盘，并下载已生成文件</span>
 </div>
 
-<div class="row g-4">
-  <div class="col-lg-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header bg-white d-flex align-items-center">
-        <span class="badge bg-primary me-2">增</span>
-        <strong>增员批次</strong>
-        <span class="ms-auto text-muted small">{{ enroll_batches|length }} 个批次</span>
-      </div>
-      <div class="card-body">
-        {% if enroll_batches %}
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>文件名</th>
-                <th>上传时间</th>
-                <th>条数</th>
-                <th class="text-end">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for b in enroll_batches %}
-              <tr>
-                <td>{{ b.id }}</td>
-                <td class="text-truncate" style="max-width: 220px" title="{{ b.filename }}">{{ b.filename }}</td>
-                <td>{{ b.uploaded_at }}</td>
-                <td>{{ b.total_rows }}</td>
-                <td class="text-end">
-                  <form method="post" action="{{ url_for('social.generate') }}" class="d-inline">
-                    <input type="hidden" name="type" value="enroll">
-                    <input type="hidden" name="batch_id" value="{{ b.id }}">
-                    <button type="submit" class="btn btn-sm btn-primary">生成</button>
-                  </form>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <p class="text-muted mb-0">暂无增员批次，请先在前台上传增员表。</p>
-        {% endif %}
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if active == 'enroll' %}active{% endif %}" href="?ptype=enroll">增员人员</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if active == 'reduce' %}active{% endif %}" href="?ptype=reduce">减员人员</a>
+  </li>
+</ul>
+
+{% include "_person_filter.html" %}
+
+<form method="post" action="{{ url_for('social.generate') }}">
+  <input type="hidden" name="type" value="{{ active }}">
+  <div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">{{ type_labels[active] }}人员（{{ persons|length }}）</h5>
+      <button class="btn btn-sm btn-primary" type="submit">生成社保{{ type_labels[active] }}报盘</button>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 2.5rem"><input type="checkbox" id="check-all" class="form-check-input"></th>
+              <th style="width: 4rem">#</th>
+              <th>姓名</th>
+              <th>身份证号</th>
+              {% if active == 'enroll' %}
+              <th>社保参保属地</th>
+              {% else %}
+              <th>社保报减年月</th>
+              {% endif %}
+              <th>批次</th>
+              <th>上传人</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in persons %}
+            <tr>
+              <td>
+                {% if p.reported %}
+                <input type="checkbox" class="form-check-input" disabled title="已生成报盘">
+                {% else %}
+                <input type="checkbox" class="form-check-input" name="record_ids" value="{{ p.id }}">
+                {% endif %}
+              </td>
+              <td class="text-muted">{{ p.id }}</td>
+              <td>{{ p.name }}</td>
+              <td>{{ p.id_card }}</td>
+              {% if active == 'enroll' %}
+              <td class="text-truncate" style="max-width: 14rem" title="{{ p.social_location }}">{{ p.social_location or '-' }}</td>
+              {% else %}
+              <td>{{ p.social_reduce_ym or '-' }}</td>
+              {% endif %}
+              <td>#{{ p.batch_id }}</td>
+              <td>{{ p.uploaded_by or '-' }}</td>
+              <td>
+                {% if p.reported %}
+                <span class="badge bg-warning text-dark">已报盘</span>
+                {% else %}
+                <span class="badge bg-success">未报盘</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">暂无{{ type_labels[active] }}人员</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
-
-  <div class="col-lg-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header bg-white d-flex align-items-center">
-        <span class="badge bg-danger me-2">减</span>
-        <strong>减员批次</strong>
-        <span class="ms-auto text-muted small">{{ reduce_batches|length }} 个批次</span>
-      </div>
-      <div class="card-body">
-        {% if reduce_batches %}
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>文件名</th>
-                <th>上传时间</th>
-                <th>条数</th>
-                <th class="text-end">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for b in reduce_batches %}
-              <tr>
-                <td>{{ b.id }}</td>
-                <td class="text-truncate" style="max-width: 220px" title="{{ b.filename }}">{{ b.filename }}</td>
-                <td>{{ b.uploaded_at }}</td>
-                <td>{{ b.total_rows }}</td>
-                <td class="text-end">
-                  <form method="post" action="{{ url_for('social.generate') }}" class="d-inline">
-                    <input type="hidden" name="type" value="reduce">
-                    <input type="hidden" name="batch_id" value="{{ b.id }}">
-                    <button type="submit" class="btn btn-sm btn-danger">生成</button>
-                  </form>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <p class="text-muted mb-0">暂无减员批次，请先在前台上传减员表。</p>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-</div>
+</form>
 
 <div class="card shadow-sm mt-4">
   <div class="card-header bg-white d-flex align-items-center">
@@ -113,6 +96,7 @@
           <tr>
             <th>ID</th>
             <th>文件名</th>
+            <th class="text-end">人数</th>
             <th>生成时间</th>
             <th>生成人</th>
             <th>状态</th>
@@ -124,6 +108,7 @@
           <tr>
             <td>{{ o.id }}</td>
             <td>{{ o.filename }}</td>
+            <td class="text-end">{{ o.record_count }}</td>
             <td>{{ o.generated_at }}</td>
             <td>{{ o.generated_by or '-' }}</td>
             <td>
@@ -146,4 +131,13 @@
     {% endif %}
   </div>
 </div>
+
+<script>
+  document.getElementById('check-all').addEventListener('change', function () {
+    var checked = this.checked;
+    document.querySelectorAll('input[name="record_ids"]:not(:disabled)').forEach(function (box) {
+      box.checked = checked;
+    });
+  });
+</script>
 {% endblock %}
