@@ -4,7 +4,7 @@
 # 从任意工作目录执行均可：先定位脚本自身所在目录，再依次处理
 #   1) .venv 缺失 -> 创建虚拟环境并安装 requirements.txt（本机 PEP668，必须 venv）
 #   2) si_batch.db 缺失 -> init_db() + seed_data()（幂等）
-#   3) exec .venv/bin/python app.py（监听 0.0.0.0:5000）
+#   3) exec .venv/bin/python app.py（监听 0.0.0.0:5010）
 set -e
 
 # ---- 定位脚本所在目录（兼容任意 cwd；readlink -f 兼容软链接调用） ----
@@ -28,5 +28,5 @@ if [ ! -f "$DB_FILE" ]; then
 fi
 
 # ---- 3. 启动（exec 替换当前 shell，Ctrl-C / kill 直接作用于 Flask 进程） ----
-echo "[run.sh] 启动 SI-Batch：本机 http://127.0.0.1:5000 ，局域网 http://<服务器IP>:5000"
+echo "[run.sh] 启动 SI-Batch：本机 http://127.0.0.1:5010 ，局域网 http://<服务器IP>:5010"
 exec "$PY" app.py

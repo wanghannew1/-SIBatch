@@ -2,7 +2,7 @@
 
 - 模块级暴露 `app`，可 `from app import app`
 - 也提供工厂 `create_app()`
-- `python app.py` 时启动开发服务器，监听 0.0.0.0:5000
+- `python app.py` 时启动开发服务器，监听 0.0.0.0:5010
 """
 
 import logging

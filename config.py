@@ -21,7 +21,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 
 # 局域网访问：监听所有网卡
 HOST = "0.0.0.0"
-PORT = 5000
+PORT = 5010
 
 # Flask session 签名密钥
 SECRET_KEY = os.environ.get("SI_BATCH_SECRET_KEY") or secrets.token_hex(32)
