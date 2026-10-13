@@ -19,7 +19,7 @@ from columns import (
     REDUCE_INPUT_DATA_START_ROW,
     REDUCE_INPUT_SHEET,
 )
-from db import execute
+from db import current_person_state, execute
 
 # reduce_records 列名 -> 减员模板列名
 _FIELD_COLUMNS = {
@@ -125,6 +125,24 @@ def parse(path, *, filename=None, uploaded_by=None):
         record["raw_json"] = json.dumps(values, ensure_ascii=False)
         records.append(record)
 
+    seen = set()
+    duplicates = []
+    final_records = []
+    for record in records:
+        id_card = record["id_card"]
+        if id_card in seen or current_person_state(id_card) == "reduced":
+            duplicates.append(
+                {
+                    "name": record["name"],
+                    "id_card": id_card,
+                    "reason": "重复减员：该人员当前已减员",
+                }
+            )
+            continue
+        seen.add(id_card)
+        final_records.append(record)
+    records = final_records
+
     batch_id, _ = execute(
         _INSERT_BATCH,
         (filename, uploaded_by, len(records), os.path.basename(path)),
@@ -143,4 +161,5 @@ def parse(path, *, filename=None, uploaded_by=None):
         "records": records,
         "success_count": len(records),
         "errors": errors,
+        "duplicates": duplicates,
     }

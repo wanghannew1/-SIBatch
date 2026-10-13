@@ -516,6 +516,32 @@ def list_person_records(record_type, *, insurance_type=None, keyword=None,
     return query_all(sql, tuple(params))
 
 
+def current_person_state(id_card):
+    """返回该身份证号当前状态：'enrolled'（在册）/ 'reduced'（已减员）/ None（无记录）。
+
+    以 import_batches.uploaded_at 比较该人最近一次增员 vs 减员的上传时间，
+    较晚者即当前状态；两者皆无则返回 None。
+    """
+    def latest(record_type):
+        table = "enroll_records" if record_type == "enroll" else "reduce_records"
+        row = query_one(
+            f"SELECT MAX(b.uploaded_at) AS t FROM {table} r"
+            " JOIN import_batches b ON b.id = r.batch_id WHERE r.id_card = ?",
+            (id_card,),
+        )
+        return row["t"] if row is not None else None
+
+    enroll_t = latest("enroll")
+    reduce_t = latest("reduce")
+    if enroll_t is None and reduce_t is None:
+        return None
+    if enroll_t is None:
+        return "reduced"
+    if reduce_t is None:
+        return "enrolled"
+    return "enrolled" if enroll_t >= reduce_t else "reduced"
+
+
 def list_injury_persons(*, keyword=None, reported=None, location=None):
     """返回省工伤需减员人员（stop_date 非空）与是否已生成工伤减员报盘。
 

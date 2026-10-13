@@ -18,7 +18,7 @@ from columns import (
     ENROLL_INPUT_DATA_START_ROW,
     ENROLL_INPUT_SHEET,
 )
-from db import execute
+from db import current_person_state, execute
 from mapping import derive_birthday, derive_gender
 
 # enroll_records 列名 -> 增员模板列名（gender/birthday 由身份证推导，无对应列）
@@ -163,6 +163,24 @@ def parse(path, *, filename=None, uploaded_by=None):
         record["raw_json"] = json.dumps(values, ensure_ascii=False)
         records.append(record)
 
+    seen = set()
+    duplicates = []
+    final_records = []
+    for record in records:
+        id_card = record["id_card"]
+        if id_card in seen or current_person_state(id_card) == "enrolled":
+            duplicates.append(
+                {
+                    "name": record["name"],
+                    "id_card": id_card,
+                    "reason": "重复增员：该人员当前已在册",
+                }
+            )
+            continue
+        seen.add(id_card)
+        final_records.append(record)
+    records = final_records
+
     batch_id, _ = execute(
         _INSERT_BATCH,
         (filename, uploaded_by, len(records), os.path.basename(path)),
@@ -181,4 +199,5 @@ def parse(path, *, filename=None, uploaded_by=None):
         "records": records,
         "success_count": len(records),
         "errors": errors,
+        "duplicates": duplicates,
     }

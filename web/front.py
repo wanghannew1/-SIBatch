@@ -139,6 +139,14 @@ def _list_batches():
 def _render(batches=None, result=None, active_type="enroll", status=200,
             persons=None, filters=None, batch_options=None,
             uploader_options=None, persons_active="enroll"):
+    if persons is None:
+        persons_active = request.args.get("ptype") or "enroll"
+        if persons_active not in ("enroll", "reduce"):
+            persons_active = "enroll"
+        filters = _parse_filters(request.args)
+        persons = db.list_person_records(persons_active, **filters)
+        batch_options = _batch_options(persons_active)
+        uploader_options = _uploader_options()
     return (
         render_template(
             "upload.html",
@@ -216,15 +224,23 @@ def upload_submit():
     type_label = _TYPE_LABELS[batch_type]
     success_count = result["success_count"]
     error_count = len(result["errors"])
-    if success_count and not error_count:
+    duplicate_count = len(result.get("duplicates", []))
+    if success_count and not error_count and not duplicate_count:
         flash(f"成功导入 {success_count} 条{type_label}记录", "success")
     elif success_count:
-        flash(
-            f"成功导入 {success_count} 条{type_label}记录，{error_count} 行失败",
-            "warning",
-        )
+        extra = []
+        if error_count:
+            extra.append(f"{error_count} 行失败")
+        if duplicate_count:
+            extra.append(f"{duplicate_count} 条重复跳过")
+        flash(f"成功导入 {success_count} 条{type_label}记录，" + "，".join(extra), "warning")
     else:
-        flash(f"未导入任何记录，{error_count} 行失败", "danger")
+        tail = []
+        if error_count:
+            tail.append(f"{error_count} 行失败")
+        if duplicate_count:
+            tail.append(f"{duplicate_count} 条重复跳过")
+        flash("未导入任何记录" + ("，" + "，".join(tail) if tail else ""), "danger")
 
     return _render(result=result, active_type=batch_type)
 
